@@ -1,0 +1,125 @@
+#wpfooter {
+    display: none;
+}
+/* Main wrapper for our admin pages */
+.assessment-quiz-admin-wrap {
+    margin-top: 20px;
+}
+
+/* Styling for form tables used in quiz creation */
+.assessment-quiz-form-table {
+    width: 100%;
+}
+
+.assessment-quiz-form-table th {
+    width: 200px;
+    padding: 15px;
+    vertical-align: top;
+}
+
+.assessment-quiz-form-table td {
+    padding: 10px 15px;
+    vertical-align: top;
+}
+
+.assessment-quiz-form-table input[type="text"],
+.assessment-quiz-form-table input[type="number"],
+.assessment-quiz-form-table textarea,
+.assessment-quiz-form-table select {
+    width: 100%;
+    max-width: 500px;
+}
+
+.assessment-quiz-form-table textarea {
+    min-height: 100px;
+}
+
+/* Styling for repeatable sections (questions, answers, etc.) */
+.repeatable-section {
+    border: 1px solid #ccd0d4;
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: #fff;
+    position: relative;
+}
+
+.repeatable-section-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #ccd0d4;
+    padding-bottom: 10px;
+}
+
+.remove-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #a00;
+    text-decoration: none;
+    border: 1px solid #a00;
+    padding: 2px 8px;
+    border-radius: 50%;
+    background-color: #fff;
+}
+
+.remove-button:hover {
+    background-color: #a00;
+    color: #fff;
+}
+
+/* Utility classes */
+.hidden {
+    display: none;
+}
+
+/* Modal Styles */
+.aq-modal {
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.4);
+}
+
+.aq-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 700px;
+    position: relative;
+}
+
+.aq-modal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.aq-modal-close:hover,
+.aq-modal-close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Quiz Structure Table */
+#quiz-structure-table .column-primary {
+    width: 60%;
+}
+
+#quiz-structure-table .question-row td {
+    border-top: none;
+}
+
+.answer-item {
+    border-top: 1px solid #eee;
+    padding: 10px 0;
+    margin-top: 10px;
+}
