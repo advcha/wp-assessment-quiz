@@ -43,6 +43,9 @@ class Assessment_Quiz_Frontend {
     public function __construct( $plugin_name, $version ) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
+
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles_and_scripts' ) );
+        $this->register_shortcode();
     }
 
     /**
@@ -53,7 +56,7 @@ class Assessment_Quiz_Frontend {
     public function enqueue_styles_and_scripts() {
         wp_enqueue_style(
             $this->plugin_name,
-            plugin_dir_url( __FILE__ ) . '../frontend/css/frontend-styles.css',
+            plugin_dir_url( __FILE__ ) . '../public/css/quiz-styles.css',
             array(),
             $this->version,
             'all'
@@ -61,7 +64,7 @@ class Assessment_Quiz_Frontend {
 
         wp_enqueue_script(
             $this->plugin_name,
-            plugin_dir_url( __FILE__ ) . '../frontend/js/frontend-scripts.js',
+            plugin_dir_url( __FILE__ ) . '../public/js/quiz-logic.js',
             array( 'jquery' ),
             $this->version,
             true // Load in footer
@@ -112,7 +115,12 @@ class Assessment_Quiz_Frontend {
         wp_add_inline_script( $this->plugin_name, 'const assessmentQuizData = ' . json_encode( $quiz_data ) . ';', 'before' );
 
         ob_start();
-        include_once plugin_dir_path( dirname( __FILE__ ) ) . 'frontend/templates/quiz-display.php';
+        $template_path = plugin_dir_path( dirname( __FILE__ ) ) . 'public/templates/quiz-display.php';
+        if ( file_exists( $template_path ) ) {
+            include $template_path;
+        } else {
+            echo '<p>Error: Quiz display template not found.</p>';
+        }
         return ob_get_clean();
     }
 
@@ -138,6 +146,8 @@ class Assessment_Quiz_Frontend {
         }
 
         $quiz_data = (array) $quiz;
+        $quiz_data['title'] = stripslashes($quiz_data['title']);
+        $quiz_data['description'] = wp_specialchars_decode(stripslashes($quiz_data['description']), ENT_QUOTES);
         $quiz_data['sections'] = array();
 
         // 2. Get Sections for the Quiz
@@ -145,6 +155,9 @@ class Assessment_Quiz_Frontend {
 
         foreach ( $sections as $section ) {
             $section_data = (array) $section;
+            $section_data['section_title'] = stripslashes($section_data['section_title']);
+            $section_data['section_content_begin'] = wp_specialchars_decode(stripslashes($section_data['section_content_begin']), ENT_QUOTES);
+            $section_data['section_content_end'] = wp_specialchars_decode(stripslashes($section_data['section_content_end']), ENT_QUOTES);
             $section_data['questions'] = array();
 
             // 3. Get Questions for each Section
@@ -152,11 +165,18 @@ class Assessment_Quiz_Frontend {
 
             foreach ( $questions as $question ) {
                 $question_data = (array) $question;
-                $question_data['answers'] = array();
-
+                $question_data['question_text'] = wp_specialchars_decode(stripslashes($question_data['question_text']), ENT_QUOTES);
+                $question_data['question_type'] = $question->question_type;
+                
                 // 4. Get Answers for each Question
                 $answers = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $answers_table WHERE question_id = %d ORDER BY answer_order ASC", $question->id ) );
-                $question_data['answers'] = $answers;
+                $decoded_answers = [];
+                foreach ($answers as $answer) {
+                    $answer_data = (array) $answer;
+                    $answer_data['answer_text'] = wp_specialchars_decode(stripslashes($answer_data['answer_text']), ENT_QUOTES);
+                    $decoded_answers[] = $answer_data;
+                }
+                $question_data['answers'] = $decoded_answers;
 
                 $section_data['questions'][] = $question_data;
             }
