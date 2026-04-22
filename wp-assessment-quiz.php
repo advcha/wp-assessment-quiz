@@ -88,8 +88,8 @@ final class Assessment_Quiz {
      */
     public function init_classes() {
         new Assessment_Quiz_Admin( $this->get_plugin_name(), $this->get_version() );
-        //new Assessment_Quiz_Frontend();
-        //new Assessment_Quiz_Ajax();
+        new Assessment_Quiz_Frontend( $this->get_plugin_name(), $this->get_version() );
+        new Assessment_Quiz_Ajax( $this->get_plugin_name(), $this->get_version() );
     }
 
     /**
