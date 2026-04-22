@@ -147,6 +147,9 @@ class Assessment_Quiz_Admin {
             wp_die( 'Security check failed' );
         }
 
+        // Remove auto-added slashes from the POST data to prevent duplication.
+        $_POST = stripslashes_deep( $_POST );
+
         global $wpdb;
         $quizzes_table = $wpdb->prefix . 'assessment_quizzes';
         $sections_table = $wpdb->prefix . 'assessment_sections';
