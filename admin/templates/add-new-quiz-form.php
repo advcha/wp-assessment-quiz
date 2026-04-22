@@ -43,7 +43,8 @@ if ( ! defined( 'WPINC' ) ) {
                                 'textarea_rows' => 5,
                                 'tinymce'       => [
                                     'toolbar1' => 'formatselect | bold italic strikethrough | bullist numlist | blockquote | alignleft aligncenter alignright | link unlink | wp_more | spellchecker | fullscreen | wp_adv',
-                                    'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help',
+                                    'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help | forecolor backcolor | fontsizeselect',
+                                    'plugins'  => 'textcolor',
                                 ],
                             ] );
                             ?>
@@ -129,7 +130,8 @@ if ( ! defined( 'WPINC' ) ) {
                             'textarea_rows' => 5,
                             'tinymce'       => [
                                 'toolbar1' => 'formatselect | bold italic strikethrough | bullist numlist | blockquote | alignleft aligncenter alignright | link unlink | wp_more | spellchecker | fullscreen | wp_adv',
-                                'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help',
+                                'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help | forecolor backcolor | fontsizeselect',
+                                'plugins'  => 'textcolor',
                             ],
                         ] );
                         ?>
