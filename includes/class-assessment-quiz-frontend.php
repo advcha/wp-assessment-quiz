@@ -54,6 +54,11 @@ class Assessment_Quiz_Frontend {
      * @since    1.0.0
      */
     public function enqueue_styles_and_scripts() {
+        // Only enqueue scripts and styles on pages using the quiz template or containing the shortcode.
+        if ( ! is_page_template('public/templates/template-quiz.php') && ! has_shortcode( get_the_content(), 'assessment_quiz' ) ) {
+            return;
+        }
+        
         wp_enqueue_style(
             $this->plugin_name,
             plugin_dir_url( __FILE__ ) . '../public/css/quiz-styles.css',
