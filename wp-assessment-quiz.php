@@ -81,6 +81,10 @@ final class Assessment_Quiz {
 
         // Initialize classes
         add_action( 'plugins_loaded', array( $this, 'init_classes' ) );
+
+        // Add page template
+        add_filter( 'theme_page_templates', array( $this, 'add_quiz_template_to_dropdown' ) );
+        add_filter( 'template_include', array( $this, 'load_quiz_template' ) );
     }
 
     /**
@@ -92,6 +96,33 @@ final class Assessment_Quiz {
         new Assessment_Quiz_Ajax( $this->get_plugin_name(), $this->get_version() );
     }
 
+    /**
+     * Add quiz template to page attributes dropdown.
+     *
+     * @param array $templates Array of page templates.
+     * @return array
+     */
+    public function add_quiz_template_to_dropdown( $templates ) {
+        $templates['template-quiz.php'] = __( 'Quiz Template', 'assessment-quiz' );
+        return $templates;
+    }
+
+    /**
+     * Load quiz template from plugin directory.
+     *
+     * @param string $template The path of the template to include.
+     * @return string
+     */
+    public function load_quiz_template( $template ) {
+        if ( is_page() && get_page_template_slug() === 'template-quiz.php' ) {
+            $plugin_template = ASSESSMENT_QUIZ_PLUGIN_DIR . 'public/templates/template-quiz.php';
+            if ( file_exists( $plugin_template ) ) {
+                return $plugin_template;
+            }
+        }
+        return $template;
+    }
+    
     /**
      * The name of the plugin used to uniquely identify it within the context of
      * WordPress and to define internationalization functionality.
