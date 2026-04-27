@@ -57,6 +57,10 @@ if ( ! defined( 'WPINC' ) ) {
         <!-- Sections and Questions Table -->
         <div class="form-section">
             <h2>Quiz Structure</h2>
+            <div class="search-box" style="margin-bottom: 10px; float: right;">
+                <label class="screen-reader-text" for="quiz-search-input">Search:</label>
+                <input type="search" id="quiz-search-input" placeholder="Search...">
+            </div>
             <table id="quiz-structure-table" class="wp-list-table widefat striped">
                 <thead>
                     <tr>

@@ -13,7 +13,20 @@
         // If editing a quiz, load the existing data from the PHP variable ---
         if (typeof existingQuizData !== 'undefined' && existingQuizData) {
             loadExistingData(existingQuizData);
+        } else {
+            renderTable(); // Initial render for new quiz
         }
+
+        $('#quiz-search-input').on('input', function() {
+            renderTable();
+        });
+
+        // Prevent form submission on Enter key in search field
+        $('#quiz-search-input').on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+            }
+        });
 
         if (typeof aq_categories !== 'undefined') {
             aq_categories.forEach(cat => {
@@ -367,29 +380,92 @@
 
         // --- Table Rendering ---
 
+        function highlightText(text, highlight) {
+            if (!highlight || !text) {
+                return text;
+            }
+            // Escape regex special characters in the highlight term
+            const escapedHighlight = highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp('(' + escapedHighlight + ')', 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        }
+
         function renderTable() {
             const $tbody = $('#quiz-structure-body');
             $tbody.empty();
 
             const sectionTemplate = $('#section-row-template').html();
             const questionTemplate = $('#question-row-template').html();
+            const searchTerm = $('#quiz-search-input').val();
+            const searchTermLc = searchTerm ? searchTerm.toLowerCase() : '';
 
             quizData.sections.forEach(section => {
+                let sectionTitle = section.title;
+                let sectionHasVisibleContent = false;
+
+                // Determine which questions to show
+                const visibleQuestions = section.questions.filter(question => {
+                    if (!searchTerm) return true; // Show all if no search term
+
+                    const questionMatch = question.text.toLowerCase().includes(searchTermLc);
+                    const answerMatch = question.answers.some(answer =>
+                        answer.text && answer.text.toLowerCase().includes(searchTermLc)
+                    );
+                    return questionMatch || answerMatch;
+                });
+
+                // Determine if the section itself matches or has visible questions
+                const sectionTitleMatch = searchTerm && section.title.toLowerCase().includes(searchTermLc);
+                if (sectionTitleMatch || visibleQuestions.length > 0) {
+                    sectionHasVisibleContent = true;
+                }
+
+                if (!sectionHasVisibleContent) {
+                    return; // Skip rendering this section if it and its questions don't match
+                }
+
+                if (sectionTitleMatch) {
+                    sectionTitle = highlightText(section.title, searchTerm);
+                }
+
                 let sectionHtml = sectionTemplate
                     .replace(/__SECTION_ID__/g, section.id)
-                    .replace(/__SECTION_TITLE__/g, section.title);
+                    .replace(/__SECTION_TITLE__/g, sectionTitle);
                 $tbody.append(sectionHtml);
 
-                section.questions.forEach(question => {
+                visibleQuestions.forEach(question => {
                     // Sanitize and truncate for display
                     const questionTextPreview = $('<div>').html(question.text).text();
                     const truncatedText = questionTextPreview.length > 100 ? questionTextPreview.substring(0, 100) + '...' : questionTextPreview;
+
+                    let displayText = truncatedText;
+                    let showCommentIcon = false;
+
+                    if (searchTerm) {
+                        const questionMatch = question.text.toLowerCase().includes(searchTermLc);
+                        const answerMatch = question.answers.some(answer =>
+                            answer.text && answer.text.toLowerCase().includes(searchTermLc)
+                        );
+
+                        if (questionMatch) {
+                            displayText = highlightText(truncatedText, searchTerm);
+                        }
+                        
+                        if (answerMatch) {
+                            showCommentIcon = true;
+                        }
+                    }
+
+                    if (showCommentIcon) {
+                         displayText += ' <span class="dashicons dashicons-admin-comments" title="Search term found in answers"></span>';
+                    }
+
                     const categoryName = question.category_name || (question.category_id && categoryMap[question.category_id] ? categoryMap[question.category_id] : 'N/A');
 
                     let questionHtml = questionTemplate
                         .replace(/__QUESTION_ID__/g, question.id)
                         .replace(/__SECTION_ID__/g, section.id)
-                        .replace(/__QUESTION_TEXT__/g, truncatedText)
+                        .replace(/__QUESTION_TEXT__/g, displayText)
                         .replace(/__QUESTION_CATEGORY__/g, categoryName);
 
                     $tbody.append(questionHtml);
