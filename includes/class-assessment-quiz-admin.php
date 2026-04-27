@@ -57,6 +57,14 @@ class Assessment_Quiz_Admin {
             $this->version,
             true
         );
+
+        // If on the 'add-new-quiz' page, pass categories data to the script
+        if ( strpos( $hook, 'add-new-quiz' ) !== false ) {
+            global $wpdb;
+            $categories_table = $wpdb->prefix . 'assessment_categories';
+            $categories = $wpdb->get_results( "SELECT id, name FROM {$categories_table} ORDER BY name ASC", ARRAY_A );
+            wp_localize_script( $this->plugin_name . '-admin', 'aq_categories', $categories );
+        }
     }
 
     public function add_admin_menu() {
@@ -144,6 +152,11 @@ class Assessment_Quiz_Admin {
         if ( $quiz_id ) {
             $existing_quiz_data = $this->get_quiz_data_for_editing( $quiz_id );
         }
+
+        global $wpdb;
+        $categories_table = $wpdb->prefix . 'assessment_categories';
+        $categories = $wpdb->get_results( "SELECT * FROM {$categories_table} ORDER BY name ASC", ARRAY_A );
+
         // Correctly include the form template from the 'admin/templates' directory
         require_once plugin_dir_path( __FILE__ ) . '../admin/templates/add-new-quiz-form.php';
     }
@@ -335,13 +348,13 @@ class Assessment_Quiz_Admin {
                         $question_id = isset( $question_data['id'] ) ? intval( $question_data['id'] ) : 0;
                         $question_text = wp_kses_post( $question_data['text'] );
                         $question_type = sanitize_text_field( $question_data['type'] );
-                        $question_category = sanitize_text_field( $question_data['category'] );
+                        $question_category_id = isset( $question_data['category_id'] ) ? intval( $question_data['category_id'] ) : 0;
 
                         $question_db_data = [
                             'section_id'        => $section_id,
                             'question_text'     => $question_text,
                             'question_type'     => $question_type,
-                            'category'          => $question_category,
+                            'category_id'       => $question_category_id,
                             'question_order'    => $question_index + 1,
                         ];
 
@@ -433,7 +446,7 @@ class Assessment_Quiz_Admin {
 
         $sections = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}assessment_sections WHERE quiz_id = %d ORDER BY `section_order` ASC", $quiz_id ), ARRAY_A );
         foreach ( $sections as $s_key => &$section ) {
-            $questions = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}assessment_questions WHERE section_id = %d ORDER BY `question_order` ASC", $section['id'] ), ARRAY_A );
+            $questions = $wpdb->get_results( $wpdb->prepare( "SELECT q.*, c.name as category_name FROM {$wpdb->prefix}assessment_questions q LEFT JOIN {$wpdb->prefix}assessment_categories c ON q.category_id = c.id WHERE q.section_id = %d ORDER BY `question_order` ASC", $section['id'] ), ARRAY_A );
             foreach ( $questions as $q_key => &$question ) {
                 $question['answers'] = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}assessment_answers WHERE question_id = %d ORDER BY `answer_order` ASC", $question['id'] ), ARRAY_A );
             }

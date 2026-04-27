@@ -8,9 +8,17 @@
             sections: []
         };
 
+        let categoryMap = {};
+
         // If editing a quiz, load the existing data from the PHP variable ---
         if (typeof existingQuizData !== 'undefined' && existingQuizData) {
             loadExistingData(existingQuizData);
+        }
+
+        if (typeof aq_categories !== 'undefined') {
+            aq_categories.forEach(cat => {
+                categoryMap[cat.id] = cat.name;
+            });
         }
 
         // --- Editor Helper Functions ---
@@ -72,6 +80,8 @@
                             id: questionData.id, // Keep original DB ID
                             text: questionData.question_text,
                             type: questionData.question_type,
+                            category_id: questionData.category_id,
+                            category_name: questionData.category_name,
                             answers: questionData.answers ? questionData.answers.map(answerData => {
                                 return {
                                     id: answerData.id, // Keep original DB ID
@@ -242,6 +252,7 @@
             const questionId = $('#question-id').val();
             const sectionId = $('#question-section-id').val();
             const questionType = $('#question-type').val();
+            const categoryId = $('#question-category').val();
 
             let answers = [];
             $('#answers-container .answer-item').each(function () {
@@ -260,6 +271,7 @@
                 const question = section.questions.find(q => q.id == questionId);
                 question.text = questionText;
                 question.type = questionType;
+                question.category_id = categoryId;
                 question.answers = answers;
             } else {
                 // Adding new question
@@ -267,6 +279,7 @@
                     id: 'new_' + new Date().getTime(),
                     text: questionText,
                     type: questionType,
+                    category_id: categoryId,
                     answers: answers
                 };
                 section.questions.push(newQuestion);
@@ -295,6 +308,7 @@
             }
 
             $('#question-type').val(question.type);
+            $('#question-category').val(question.category_id);
 
             // Populate answers
             $('#answers-container').empty();
@@ -370,11 +384,13 @@
                     // Sanitize and truncate for display
                     const questionTextPreview = $('<div>').html(question.text).text();
                     const truncatedText = questionTextPreview.length > 100 ? questionTextPreview.substring(0, 100) + '...' : questionTextPreview;
+                    const categoryName = question.category_name || (question.category_id && categoryMap[question.category_id] ? categoryMap[question.category_id] : 'N/A');
 
                     let questionHtml = questionTemplate
                         .replace(/__QUESTION_ID__/g, question.id)
                         .replace(/__SECTION_ID__/g, section.id)
-                        .replace(/__QUESTION_TEXT__/g, truncatedText);
+                        .replace(/__QUESTION_TEXT__/g, truncatedText)
+                        .replace(/__QUESTION_CATEGORY__/g, categoryName);
 
                     $tbody.append(questionHtml);
                 });
@@ -404,6 +420,7 @@
                     }
                     $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][text]`, value: question.text, class: 'quiz-data-hidden' }).appendTo(this);
                     $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][type]`, value: question.type, class: 'quiz-data-hidden' }).appendTo(this);
+                    $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][category_id]`, value: question.category_id || 0, class: 'quiz-data-hidden' }).appendTo(this);
                     $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][order]`, value: questionIndex, class: 'quiz-data-hidden' }).appendTo(this);
 
                     question.answers.forEach((answer, answerIndex) => {

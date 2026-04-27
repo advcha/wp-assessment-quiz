@@ -62,6 +62,7 @@ if ( ! defined( 'WPINC' ) ) {
                     <tr>
                         <th scope="col" class="manage-column column-primary">Title</th>
                         <th scope="col" class="manage-column">Type</th>
+                        <th scope="col" class="manage-column">Category</th>
                         <th scope="col" class="manage-column">Actions</th>
                     </tr>
                 </thead>
@@ -146,6 +147,19 @@ if ( ! defined( 'WPINC' ) ) {
                         </select>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row"><label for="question-category">Category</label></th>
+                    <td>
+                        <select id="question-category">
+                            <option value="">Select a category</option>
+                            <?php if ( ! empty( $categories ) ) : ?>
+                                <?php foreach ( $categories as $category ) : ?>
+                                    <option value="<?php echo esc_attr( $category['id'] ); ?>"><?php echo esc_html( $category['name'] ); ?></option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </td>
+                </tr>
             </table>
 
             <h3>Answers</h3>
@@ -176,6 +190,7 @@ if ( ! defined( 'WPINC' ) ) {
             <button type="button" class="toggle-row"></button>
         </td>
         <td>Section</td>
+        <td></td>
         <td>
             <button type="button" class="button button-secondary add-question-btn">+ Add Question</button>
         </td>
@@ -192,6 +207,7 @@ if ( ! defined( 'WPINC' ) ) {
             </div>
         </td>
         <td>Question</td>
+        <td>__QUESTION_CATEGORY__</td>
         <td></td>
     </tr>
 </script>
