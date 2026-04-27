@@ -395,6 +395,71 @@
                     $tbody.append(questionHtml);
                 });
             });
+
+            // Initialize SortableJS after rendering the table
+            initializeSortable();
+        }
+
+        function initializeSortable() {
+            const tbody = document.getElementById('quiz-structure-body');
+            if (tbody.sortable) {
+                tbody.sortable.destroy();
+            }
+            
+            const sortable = new Sortable(tbody, {
+                group: 'quiz',
+                animation: 150,
+                handle: '.drag-handle', // Drag handle for questions
+                draggable: '.question-row', // Only questions are draggable
+                onEnd: function (evt) {
+                    // The DOM has been updated by SortableJS.
+                    // We rebuild our `quizData` object to reflect the new state of the DOM.
+
+                    const newSectionsData = [];
+                    let currentSectionObject = null;
+
+                    $('#quiz-structure-body > tr').each(function() {
+                        const $row = $(this);
+
+                        if ($row.hasClass('section-row')) {
+                            const sectionId = $row.data('section-id');
+                            // Find the original section object to preserve its properties
+                            const originalSection = quizData.sections.find(s => s.id == sectionId);
+                            if (originalSection) {
+                                currentSectionObject = {
+                                    ...originalSection,
+                                    questions: [] // Reset questions array
+                                };
+                                newSectionsData.push(currentSectionObject);
+                            }
+                        } else if ($row.hasClass('question-row') && currentSectionObject) {
+                            const questionId = $row.data('question-id');
+                            // Find the original question object from the old quizData
+                            let originalQuestion = null;
+                            for (const section of quizData.sections) {
+                                const found = section.questions.find(q => q.id == questionId);
+                                if (found) {
+                                    originalQuestion = found;
+                                    break;
+                                }
+                            }
+
+                            if (originalQuestion) {
+                                currentSectionObject.questions.push(originalQuestion);
+                            }
+                        }
+                    });
+
+                    // Replace the old sections data with the newly ordered one
+                    quizData.sections = newSectionsData;
+
+                    // Re-render the table from the updated `quizData`.
+                    // This is the simplest way to ensure the DOM is fully consistent
+                    // with the data model (e.g., updating data-section-id attributes).
+                    renderTable();
+                }
+            });
+            tbody.sortable = sortable; // Store instance for destruction
         }
 
         // --- Form Submission ---

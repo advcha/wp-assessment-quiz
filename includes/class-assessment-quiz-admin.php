@@ -50,6 +50,15 @@ class Assessment_Quiz_Admin {
         // This is required for the media uploader
         wp_enqueue_media();
 
+        // Enqueue SortableJS from a CDN
+        wp_enqueue_script(
+            'sortable-js',
+            'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js',
+            array(),
+            '1.15.0', // You can specify a version
+            true
+        );
+
         wp_enqueue_script(
             $this->plugin_name . '-admin',
             plugin_dir_url( __FILE__ ) . '../admin/js/admin-scripts.js',
@@ -349,13 +358,14 @@ class Assessment_Quiz_Admin {
                         $question_text = wp_kses_post( $question_data['text'] );
                         $question_type = sanitize_text_field( $question_data['type'] );
                         $question_category_id = isset( $question_data['category_id'] ) ? intval( $question_data['category_id'] ) : 0;
+                        $question_order = isset( $question_data['order'] ) ? intval( $question_data['order'] ) : $question_index + 1;
 
                         $question_db_data = [
                             'section_id'        => $section_id,
                             'question_text'     => $question_text,
                             'question_type'     => $question_type,
                             'category_id'       => $question_category_id,
-                            'question_order'    => $question_index + 1,
+                            'question_order'    => $question_order,
                         ];
 
                         if ( $question_id ) {

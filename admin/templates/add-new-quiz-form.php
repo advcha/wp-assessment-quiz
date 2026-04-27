@@ -200,7 +200,7 @@ if ( ! defined( 'WPINC' ) ) {
 <script type="text/html" id="question-row-template">
     <tr class="question-row" data-question-id="__QUESTION_ID__" data-section-id="__SECTION_ID__">
         <td class="column-primary has-row-actions">
-            <div style="padding-left: 20px;">__QUESTION_TEXT__</div>
+            <div style="padding-left: 20px;"><span class="drag-handle" style="cursor: move;">&#9776;</span> __QUESTION_TEXT__</div>
             <div style="padding-left: 20px;" class="row-actions">
                 <span class="edit"><a href="#" class="edit-question">Edit</a> | </span>
                 <span class="trash"><a href="#" class="delete-question">Delete</a></span>
