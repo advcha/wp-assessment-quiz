@@ -158,7 +158,7 @@ final class Assessment_Quiz {
         // Table for Quizzes
         $table_name = $table_prefix . 'assessment_quizzes';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             title VARCHAR(255) NOT NULL,
             slug VARCHAR(255) NOT NULL,
             description TEXT,
@@ -170,7 +170,7 @@ final class Assessment_Quiz {
         // Table for Sections
         $table_name = $table_prefix . 'assessment_sections';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             quiz_id INT(10) NOT NULL,
             title VARCHAR(255) NOT NULL,
             section_content_begin TEXT,
@@ -184,11 +184,11 @@ final class Assessment_Quiz {
         // Table for Questions
         $table_name = $table_prefix . 'assessment_questions';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             section_id INT(10) NOT NULL,
             question_text TEXT NOT NULL,
             question_type VARCHAR(50) NOT NULL DEFAULT 'single',
-            category_id SMALLINT(5) DEFAULT 0,
+            category_id TINYINT(5) DEFAULT 0,
             question_order INT NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             KEY section_id (section_id)
@@ -198,7 +198,7 @@ final class Assessment_Quiz {
         // Table for Answers
         $table_name = $table_prefix . 'assessment_answers';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             question_id INT(10) NOT NULL,
             answer_text VARCHAR(255),
             points SMALLINT NOT NULL DEFAULT 0,
@@ -211,7 +211,7 @@ final class Assessment_Quiz {
         // Table for Categories
         $table_name = $table_prefix . 'assessment_categories';
         $sql = "CREATE TABLE $table_name (
-            id TINYINT(5) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id TINYINT(5) UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(255) NOT NULL,
             description TEXT,
             PRIMARY KEY (id),
@@ -222,7 +222,7 @@ final class Assessment_Quiz {
         // Table for Results/Reports
         $table_name = $table_prefix . 'assessment_results';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             quiz_id INT(10) NOT NULL,
             min_score INT NOT NULL,
             max_score INT NOT NULL,
@@ -236,7 +236,7 @@ final class Assessment_Quiz {
         // Table for Submissions
         $table_name = $table_prefix . 'assessment_submissions';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             quiz_id INT(10) NOT NULL,
             user_id INT(20) UNSIGNED,
             first_name VARCHAR(255),
@@ -252,7 +252,7 @@ final class Assessment_Quiz {
         // Table for User's selected answers
         $table_name = $table_prefix . 'assessment_user_answers';
         $sql = "CREATE TABLE $table_name (
-            id INT(10) NOT NULL UNSIGNED AUTO_INCREMENT,
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             submission_id INT(10) NOT NULL,
             question_id INT(10) NOT NULL,
             answer_id INT(10) NOT NULL,
