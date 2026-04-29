@@ -45,7 +45,8 @@ class Assessment_Categories_List_Table extends WP_List_Table {
 
     public function column_name( $item ) {
         $edit_url = add_query_arg( [
-            'page'        => 'assessment-quiz-categories',
+            'page'        => 'assessment-quiz-settings',
+            'tab'         => 'categories',
             'action'      => 'edit',
             'category_id' => $item['id']
         ], admin_url( 'admin.php' ) );
@@ -78,7 +79,7 @@ class Assessment_Categories_List_Table extends WP_List_Table {
                 $category_ids = array_map( 'intval', $_POST['category_ids'] );
                 $result = self::delete_categories( $category_ids );
 
-                $redirect_url = 'admin.php?page=assessment-quiz-categories';
+                $redirect_url = 'admin.php?page=assessment-quiz-settings&tab=categories';
                 if ( $result === -1 ) {
                     $redirect_url = add_query_arg( ['status' => 'error', 'msg' => 'in_use'], $redirect_url );
                 } else {

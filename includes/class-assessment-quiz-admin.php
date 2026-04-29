@@ -78,8 +78,8 @@ class Assessment_Quiz_Admin {
 
     public function add_admin_menu() {
         add_menu_page(
-            'Quiz Assessments',
-            'Quiz Assessments',
+            'Assessment Quiz',
+            'Assessment Quiz',
             'manage_options',
             'assessment-quiz',
             array( $this, 'display_quizzes_page' ),
@@ -105,13 +105,14 @@ class Assessment_Quiz_Admin {
             array( $this, 'display_add_new_quiz_page' )
         );
 
+        // Add a "Settings" submenu
         add_submenu_page(
             'assessment-quiz',
-            'Categories',
-            'Categories',
+            'Settings',
+            'Settings',
             'manage_options',
-            'assessment-quiz-categories',
-            array( $this, 'display_categories_page' )
+            'assessment-quiz-settings',
+            array( $this, 'display_settings_page' )
         );
 
         add_submenu_page(
@@ -170,7 +171,58 @@ class Assessment_Quiz_Admin {
         require_once plugin_dir_path( __FILE__ ) . '../admin/templates/add-new-quiz-form.php';
     }
 
-    public function display_categories_page() {
+    public function display_settings_page() {
+        ?>
+        <div class="wrap">
+            <h1>Assessment Quiz Settings</h1>
+            <?php
+            // Determine the active tab, defaulting to 'categories'
+            $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'categories';
+            ?>
+            <!-- Tab navigation -->
+            <h2 class="nav-tab-wrapper">
+                <a href="?page=assessment-quiz-settings&tab=categories" class="nav-tab <?php echo $active_tab == 'categories' ? 'nav-tab-active' : ''; ?>">Categories</a>
+                <a href="?page=assessment-quiz-settings&tab=result_tiers" class="nav-tab <?php echo $active_tab == 'result_tiers' ? 'nav-tab-active' : ''; ?>">Result Tiers</a>
+                <a href="?page=assessment-quiz-settings&tab=category_results" class="nav-tab <?php echo $active_tab == 'category_results' ? 'nav-tab-active' : ''; ?>">Category Results</a>
+            </h2>
+
+            <?php
+            // Display content based on the active tab
+            if ( $active_tab == 'categories' ) {
+                $this->display_categories_tab_content();
+            } elseif ( $active_tab == 'result_tiers' ) {
+                $this->display_result_tiers_tab_content();
+            } elseif ( $active_tab == 'category_results' ) {
+                $this->display_category_results_tab_content();
+            }
+            ?>
+        </div>
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                $('#doaction, #doaction2').on('click', function(e) {
+                    var action = $(this).prev('select').val();
+                    if (action === 'trash') {
+                        if (!confirm('Are you sure you want to delete the selected categories?')) {
+                            e.preventDefault();
+                        }
+                    }
+                });
+            });
+        </script>
+        <?php
+    }
+
+    public function display_result_tiers_tab_content() {
+        ?>
+        <div class="wrap">
+            <h2>Result Tiers</h2>
+            <p>Here you will be able to manage the result tiers (e.g., Low, Medium, High) and their thresholds.</p>
+            <!-- We will build the list table and forms here -->
+        </div>
+        <?php
+    }
+
+    public function display_categories_tab_content() {
         require_once plugin_dir_path( __FILE__ ) . 'class-assessment-categories-list-table.php';
         $action = isset( $_GET['action'] ) ? sanitize_key( $_GET['action'] ) : 'list';
         $category_id = isset( $_GET['category_id'] ) ? intval( $_GET['category_id'] ) : 0;
@@ -191,29 +243,42 @@ class Assessment_Quiz_Admin {
             $list_table = new Assessment_Categories_List_Table();
             $list_table->prepare_items();
             ?>
-            <div class="wrap">
-                <?php echo '<h1 class="wp-heading-inline">Categories</h1>'; ?>
-                <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-categories&action=add' ) ); ?>" class="page-title-action">Add New Category</a>
-                <?php if ( ! empty( $_GET['status'] ) ) : ?>
-                    <div id="message" class="updated notice is-dismissible">
-                        <?php if ( $_GET['status'] === 'saved' ) : ?>
-                            <p><?php esc_html_e( 'Category saved successfully.', 'assessment-quiz' ); ?></p>
-                        <?php elseif ( $_GET['status'] === 'deleted' ) : ?>
-                            <p><?php esc_html_e( 'Category(ies) deleted successfully.', 'assessment-quiz' ); ?></p>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
-                
-                <form method="post">
-                    <input type="hidden" name="page" value="assessment-quiz-categories">
-                    <?php
-                    $list_table->search_box( 'Search Categories', 'category' );
-                    $list_table->display();
-                    ?>
-                </form>
-            </div>
+            
+            <h2>Categories
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=categories&action=add' ) ); ?>" class="page-title-action">Add New</a>
+            </h2>
+
+            <?php if ( ! empty( $_GET['status'] ) ) : ?>
+                <div id="message" class="updated notice is-dismissible">
+                    <?php if ( $_GET['status'] === 'saved' ) : ?>
+                        <p><?php esc_html_e( 'Category saved successfully.', 'assessment-quiz' ); ?></p>
+                    <?php elseif ( $_GET['status'] === 'deleted' ) : ?>
+                        <p><?php esc_html_e( 'Category(ies) deleted successfully.', 'assessment-quiz' ); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            
+            <form method="post">
+                <input type="hidden" name="page" value="assessment-quiz-settings">
+                <input type="hidden" name="tab" value="categories">
+                <?php
+                $list_table->search_box( 'Search Categories', 'category' );
+                $list_table->display();
+                ?>
+            </form>
+            
             <?php
         }
+    }
+
+    public function display_category_results_tab_content() {
+        ?>
+        <div class="wrap">
+            <h2>Category Results</h2>
+            <p>Here you will be able to assign content to each category and result tier combination.</p>
+            <!-- We will build the list table and forms here -->
+        </div>
+        <?php
     }
 
     private function display_category_form( $action = 'add', $category = null ) {
@@ -242,7 +307,11 @@ class Assessment_Quiz_Admin {
                         </tr>
                     </tbody>
                 </table>
-                <?php submit_button( $submit_button_text ); ?>
+                <?php //submit_button( $submit_button_text ); ?>
+                <p class="submit">
+                    <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php echo esc_attr( $submit_button_text ); ?>">
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=categories' ) ); ?>" class="button button-secondary" style="margin-left: 10px;">Cancel</a>
+                </p>
             </form>
         </div>
         <?php
@@ -266,7 +335,7 @@ class Assessment_Quiz_Admin {
         } else {
             $wpdb->insert( $table_name, $data );
         }
-        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-categories&status=saved' ) );
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=categories&status=saved' ) );
         exit;
     }
 
@@ -284,7 +353,7 @@ class Assessment_Quiz_Admin {
         }
         require_once plugin_dir_path( __FILE__ ) . 'class-assessment-categories-list-table.php';
         Assessment_Categories_List_Table::delete_categories( $category_id );
-        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-categories&status=deleted' ) );
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=categories&status=deleted' ) );
         exit;
     }
 

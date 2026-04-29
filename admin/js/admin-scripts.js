@@ -478,6 +478,12 @@
 
         function initializeSortable() {
             const tbody = document.getElementById('quiz-structure-body');
+
+            // prevent it to load if tbody is not found, which can happen if the user is on a different admin page that doesn't have the quiz structure table
+            if (!tbody) {
+                return;
+            }
+
             if (tbody.sortable) {
                 tbody.sortable.destroy();
             }
