@@ -30,6 +30,8 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_action_delete_category', array( $this, 'delete_category_action' ) );
         add_action( 'admin_post_save_result_tier_action', array( $this, 'save_result_tier_data' ) );
         add_action( 'admin_action_delete_result_tier', array( $this, 'delete_result_tier_action' ) );
+        add_action( 'admin_post_save_category_result_action', array( $this, 'save_category_result_data' ) );
+        add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
     }
 
     public function enqueue_styles_and_scripts( $hook ) {
@@ -210,6 +212,8 @@ class Assessment_Quiz_Admin {
                             $confirm_message = 'Are you sure you want to delete the selected categories?';
                         } elseif ( $active_tab === 'result_tiers' ) {
                             $confirm_message = 'Are you sure you want to delete the selected Result Tier?';
+                        } elseif ( $active_tab === 'category_results' ) {
+                            $confirm_message = 'Are you sure you want to delete the selected Category Results?';
                         }
                         ?>
                         var message = '<?php echo esc_js( $confirm_message ); ?>';
@@ -372,11 +376,145 @@ class Assessment_Quiz_Admin {
     }
 
     public function display_category_results_tab_content() {
+        require_once plugin_dir_path( __FILE__ ) . 'class-assessment-category-results-list-table.php';
+        $action = isset( $_GET['action'] ) ? sanitize_key( $_GET['action'] ) : 'list';
+        $category_result_id = isset( $_GET['category_result_id'] ) ? intval( $_GET['category_result_id'] ) : 0;
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'assessment_category_results';
+        $category_result = null;
+        if ( $category_result_id ) {
+            $category_result = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $category_result_id ), ARRAY_A );
+        }
+        if ( ( 'edit' === $action && $category_result ) || 'add' === $action ) {
+            $this->display_category_result_form( $action, $category_result );
+        } else {
+            $list_table = new Assessment_Category_Results_List_Table();
+            $list_table->prepare_items();
+            ?>
+            <h2>Category Results
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results&action=add' ) ); ?>" class="page-title-action">Add New</a>
+            </h2>
+
+            <?php if ( ! empty( $_GET['status'] ) ) : ?>
+                <div id="message" class="updated notice is-dismissible">
+                    <?php if ( $_GET['status'] === 'saved' ) : ?>
+                        <p><?php esc_html_e( 'Category result saved successfully.', 'assessment-quiz' ); ?></p>
+                    <?php elseif ( $_GET['status'] === 'deleted' ) : ?>
+                        <p><?php esc_html_e( 'Category result(s) deleted successfully.', 'assessment-quiz' ); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            
+            <form method="post">
+                <input type="hidden" name="page" value="assessment-quiz-settings">
+                <input type="hidden" name="tab" value="category_results">
+                <?php
+                $list_table->search_box( 'Search Results', 'result' );
+                $list_table->display();
+                ?>
+            </form>
+            <?php
+        }
+    }
+
+    private function display_category_result_form( $action = 'add', $result = null ) {
+        global $wpdb;
+        $page_title = ( 'add' === $action ) ? 'Add New Category Result' : 'Edit Category Result';
+        $submit_button_text = ( 'add' === $action ) ? 'Add Category Result' : 'Update Category Result';
+
+        $category_id = $result ? $result['category_id'] : '';
+        $result_tier_id = $result ? $result['result_tier_id'] : '';
+        $focus_area_title = $result ? $result['focus_area_title'] : '';
+        $focus_area_description = $result ? $result['focus_area_description'] : '';
+        $healing_plan_details = $result ? $result['healing_plan_details'] : '';
+
+        $categories_table = $wpdb->prefix . 'assessment_categories';
+        $categories = $wpdb->get_results( "SELECT id, name FROM {$categories_table} ORDER BY name ASC" );
+
+        $tiers_table = $wpdb->prefix . 'assessment_result_tiers';
+        $tiers = $wpdb->get_results( "SELECT id, tier_name FROM {$tiers_table} ORDER BY tier_name ASC" );
         ?>
         <div class="wrap">
-            <h2>Category Results</h2>
-            <p>Here you will be able to assign content to each category and result tier combination.</p>
-            <!-- We will build the list table and forms here -->
+            <h1><?php echo esc_html( $page_title ); ?></h1>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="save_category_result_action">
+                <?php if ( 'edit' === $action && $result ) : ?>
+                    <input type="hidden" name="category_result_id" value="<?php echo esc_attr( $result['id'] ); ?>">
+                <?php endif; ?>
+                <?php wp_nonce_field( 'save_category_result_action', 'save_category_result_nonce' ); ?>
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="category_id">Category</label></th>
+                            <td>
+                                <select name="category_id" id="category_id" required>
+                                    <option value="">Select a Category</option>
+                                    <?php foreach ( $categories as $category ) : ?>
+                                        <option value="<?php echo esc_attr( $category->id ); ?>" <?php selected( $category_id, $category->id ); ?>>
+                                            <?php echo esc_html( $category->name ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="result_tier_id">Result Tier</label></th>
+                            <td>
+                                <select name="result_tier_id" id="result_tier_id" required>
+                                    <option value="">Select a Result Tier</option>
+                                    <?php foreach ( $tiers as $tier ) : ?>
+                                        <option value="<?php echo esc_attr( $tier->id ); ?>" <?php selected( $result_tier_id, $tier->id ); ?>>
+                                            <?php echo esc_html( $tier->tier_name ); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="focus_area_title">Focus Area Title</label></th>
+                            <td><input name="focus_area_title" type="text" id="focus_area_title" value="<?php echo esc_attr( $focus_area_title ); ?>" class="regular-text"></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="focus_area_description">Focus Area Description</label></th>
+                            <td>
+                                <?php 
+                                wp_editor( $focus_area_description, 'focus_area_description', [ 
+                                    'textarea_name' => 'focus_area_description',
+                                    'media_buttons' => true,
+                                    'textarea_rows' => 5,
+                                    'tinymce'       => [
+                                        'toolbar1' => 'formatselect | bold italic strikethrough | bullist numlist | blockquote | alignleft aligncenter alignright | link unlink | wp_more | spellchecker | fullscreen | wp_adv',
+                                        'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help | forecolor backcolor | fontsizeselect',
+                                        'plugins'  => 'textcolor',
+                                    ], 
+                                ] ); 
+                                ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="healing_plan_details">Healing Plan Details</label></th>
+                            <td>
+                                <?php 
+                                wp_editor( $healing_plan_details, 'healing_plan_details', [ 
+                                    'textarea_name' => 'healing_plan_details',
+                                    'media_buttons' => true,
+                                    'textarea_rows' => 10,
+                                    'tinymce'       => [
+                                        'toolbar1' => 'formatselect | bold italic strikethrough | bullist numlist | blockquote | alignleft aligncenter alignright | link unlink | wp_more | spellchecker | fullscreen | wp_adv',
+                                        'toolbar2' => 'styleselect | pastetext removeformat | charmap | outdent indent | undo redo | wp_help | forecolor backcolor | fontsizeselect',
+                                        'plugins'  => 'textcolor',
+                                    ], 
+                                ] ); 
+                                ?>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php echo esc_attr( $submit_button_text ); ?>">
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results' ) ); ?>" class="button button-secondary" style="margin-left: 10px;">Cancel</a>
+                </p>
+            </form>
         </div>
         <?php
     }
@@ -501,6 +639,51 @@ class Assessment_Quiz_Admin {
         require_once plugin_dir_path( __FILE__ ) . 'class-assessment-result-tiers-list-table.php';
         Assessment_Result_Tiers_List_Table::delete_result_tiers( $result_tier_id );
         wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=result_tiers&status=deleted' ) );
+        exit;
+    }
+
+    public function save_category_result_data() {
+        if ( ! isset( $_POST['save_category_result_nonce'] ) || ! wp_verify_nonce( $_POST['save_category_result_nonce'], 'save_category_result_action' ) ) {
+            wp_die( 'Security check failed' );
+        }
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'assessment_category_results';
+        $id = isset( $_POST['category_result_id'] ) ? intval( $_POST['category_result_id'] ) : 0;
+        
+        $data = [
+            'category_id'            => intval( $_POST['category_id'] ),
+            'result_tier_id'         => intval( $_POST['result_tier_id'] ),
+            'focus_area_title'       => sanitize_text_field( $_POST['focus_area_title'] ),
+            'focus_area_description' => sanitize_textarea_field( $_POST['focus_area_description'] ),
+            'healing_plan_details'   => wp_kses_post( $_POST['healing_plan_details'] ),
+        ];
+
+        if ( $id ) {
+            $wpdb->update( $table_name, $data, [ 'id' => $id ] );
+        } else {
+            $wpdb->insert( $table_name, $data );
+        }
+
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results&status=saved' ) );
+        exit;
+    }
+
+    public function delete_category_result_action() {
+        if ( empty( $_GET['category_result_id'] ) || empty( $_GET['_wpnonce'] ) ) {
+            wp_die( 'Invalid request.' );
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have permission to delete this item.' );
+        }
+        $id = absint( $_GET['category_result_id'] );
+        $nonce = sanitize_text_field( $_GET['_wpnonce'] );
+        if ( ! wp_verify_nonce( $nonce, 'delete_category_result_' . $id ) ) {
+            wp_die( 'Security check failed.' );
+        }
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'assessment_category_results';
+        $wpdb->delete( $table_name, [ 'id' => $id ] );
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results&status=deleted' ) );
         exit;
     }
 
