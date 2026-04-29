@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '1.3.0' );
+define( 'ASSESSMENT_QUIZ_VERSION', '1.4.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -69,7 +69,7 @@ final class Assessment_Quiz {
     private function includes() {
         require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-admin.php';
         require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-frontend.php';
-        require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-ajax.php';
+        //require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-ajax.php';
     }
 
     /**
@@ -93,7 +93,7 @@ final class Assessment_Quiz {
     public function init_classes() {
         new Assessment_Quiz_Admin( $this->get_plugin_name(), $this->get_version() );
         new Assessment_Quiz_Frontend( $this->get_plugin_name(), $this->get_version() );
-        new Assessment_Quiz_Ajax( $this->get_plugin_name(), $this->get_version() );
+        //new Assessment_Quiz_Ajax( $this->get_plugin_name(), $this->get_version() );
     }
 
     /**
@@ -219,6 +219,33 @@ final class Assessment_Quiz {
         ) $charset_collate;";
         dbDelta( $sql );
 
+        // Table for Result Tiers
+        $table_name = $table_prefix . 'assessment_result_tiers';
+        $sql = "CREATE TABLE $table_name (
+            id TINYINT(5) UNSIGNED NOT NULL AUTO_INCREMENT,
+            tier_name VARCHAR(50) NOT NULL,
+            tier_label VARCHAR(255) NOT NULL,
+            threshold_type ENUM('percentage', 'value') NOT NULL,
+            threshold_value INT NOT NULL,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+        dbDelta( $sql );
+
+        // Table for Category Results
+        $table_name = $table_prefix . 'assessment_category_results';
+        $sql = "CREATE TABLE $table_name (
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+            category_id TINYINT(5) UNSIGNED NOT NULL,
+            result_tier_id TINYINT(5) UNSIGNED NOT NULL,
+            focus_area_title TEXT,
+            focus_area_description TEXT,
+            healing_plan_details TEXT,
+            PRIMARY KEY (id),
+            KEY category_id (category_id),
+            KEY result_tier_id (result_tier_id)
+        ) $charset_collate;";
+        dbDelta( $sql );
+
         // Table for Results/Reports
         $table_name = $table_prefix . 'assessment_results';
         $sql = "CREATE TABLE $table_name (
@@ -244,6 +271,7 @@ final class Assessment_Quiz {
             email VARCHAR(255),
             final_score INT,
             submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            answers TEXT NULL,
             PRIMARY KEY (id),
             KEY quiz_id (quiz_id)
         ) $charset_collate;";
