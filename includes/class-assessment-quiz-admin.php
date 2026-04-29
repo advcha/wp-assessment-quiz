@@ -28,6 +28,8 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_action_delete_quiz', array( $this, 'delete_quiz_action' ) );
         add_action( 'admin_post_save_category_action', array( $this, 'save_category_data' ) );
         add_action( 'admin_action_delete_category', array( $this, 'delete_category_action' ) );
+        add_action( 'admin_post_save_result_tier_action', array( $this, 'save_result_tier_data' ) );
+        add_action( 'admin_action_delete_result_tier', array( $this, 'delete_result_tier_action' ) );
     }
 
     public function enqueue_styles_and_scripts( $hook ) {
@@ -202,7 +204,16 @@ class Assessment_Quiz_Admin {
                 $('#doaction, #doaction2').on('click', function(e) {
                     var action = $(this).prev('select').val();
                     if (action === 'trash') {
-                        if (!confirm('Are you sure you want to delete the selected categories?')) {
+                        <?php
+                        $confirm_message = '';
+                        if ( $active_tab === 'categories' ) {
+                            $confirm_message = 'Are you sure you want to delete the selected categories?';
+                        } elseif ( $active_tab === 'result_tiers' ) {
+                            $confirm_message = 'Are you sure you want to delete the selected Result Tier?';
+                        }
+                        ?>
+                        var message = '<?php echo esc_js( $confirm_message ); ?>';
+                        if (message && !confirm(message)) {
                             e.preventDefault();
                         }
                     }
@@ -213,11 +224,100 @@ class Assessment_Quiz_Admin {
     }
 
     public function display_result_tiers_tab_content() {
+        require_once plugin_dir_path( __FILE__ ) . 'class-assessment-result-tiers-list-table.php';
+        $action = isset( $_GET['action'] ) ? sanitize_key( $_GET['action'] ) : 'list';
+        $result_tier_id = isset( $_GET['result_tier_id'] ) ? intval( $_GET['result_tier_id'] ) : 0;
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'assessment_result_tiers';
+        $result_tier = null;
+        if ( $result_tier_id ) {
+            $result_tier = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE id = %d", $result_tier_id ), ARRAY_A );
+        }
+        if ( 'edit' === $action && $result_tier ) {
+            $this->display_result_tier_form( 'edit', $result_tier );
+        } elseif ( 'add' === $action ) {
+            $this->display_result_tier_form( 'add' );
+        } else {
+            $list_table = new Assessment_Result_Tiers_List_Table();
+            $list_table->prepare_items();
+            ?>
+            <h2>Result Tiers
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=result_tiers&action=add' ) ); ?>" class="page-title-action">Add New</a>
+            </h2>
+
+            <?php if ( ! empty( $_GET['status'] ) ) : ?>
+                <div id="message" class="updated notice is-dismissible">
+                    <?php if ( $_GET['status'] === 'saved' ) : ?>
+                        <p><?php esc_html_e( 'Result tier saved successfully.', 'assessment-quiz' ); ?></p>
+                    <?php elseif ( $_GET['status'] === 'deleted' ) : ?>
+                        <p><?php esc_html_e( 'Result tier(s) deleted successfully.', 'assessment-quiz' ); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            
+            <form method="post">
+                <input type="hidden" name="page" value="assessment-quiz-settings">
+                <input type="hidden" name="tab" value="result_tiers">
+                <?php
+                $list_table->search_box( 'Search Tiers', 'tier' );
+                $list_table->display();
+                ?>
+            </form>
+            <?php
+        }
+    }
+
+    private function display_result_tier_form( $action = 'add', $tier = null ) {
+        $page_title = ( 'add' === $action ) ? 'Add New Result Tier' : 'Edit Result Tier';
+        $submit_button_text = ( 'add' === $action ) ? 'Add Result Tier' : 'Update Result Tier';
+        
+        $tier_name = $tier ? $tier['tier_name'] : '';
+        $tier_label = $tier ? $tier['tier_label'] : '';
+        $threshold_type = $tier ? $tier['threshold_type'] : 'value';
+        $threshold_value = $tier ? $tier['threshold_value'] : '';
         ?>
         <div class="wrap">
-            <h2>Result Tiers</h2>
-            <p>Here you will be able to manage the result tiers (e.g., Low, Medium, High) and their thresholds.</p>
-            <!-- We will build the list table and forms here -->
+            <h1><?php echo esc_html( $page_title ); ?></h1>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="save_result_tier_action">
+                <?php if ( 'edit' === $action && $tier ) : ?>
+                    <input type="hidden" name="result_tier_id" value="<?php echo esc_attr( $tier['id'] ); ?>">
+                <?php endif; ?>
+                <?php wp_nonce_field( 'save_result_tier_action', 'save_result_tier_nonce' ); ?>
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="tier_name">Tier Name</label></th>
+                            <td><input name="tier_name" type="text" id="tier_name" value="<?php echo esc_attr( $tier_name ); ?>" class="regular-text" required>
+                            <p class="description">A short name for the tier (e.g., High, Medium, Low).</p></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="tier_label">Tier Label</label></th>
+                            <td><input name="tier_label" type="text" id="tier_label" value="<?php echo esc_attr( $tier_label ); ?>" class="regular-text" required>
+                            <p class="description">A descriptive label shown to the user.</p></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="threshold_type">Threshold Type</label></th>
+                            <td>
+                                <select name="threshold_type" id="threshold_type">
+                                    <option value="percentage" <?php selected( $threshold_type, 'percentage' ); ?>>Percentage</option>
+                                    <option value="value" <?php selected( $threshold_type, 'value' ); ?>>Value</option>
+                                </select>
+                                <p class="description">The type of threshold calculation.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="threshold_value">Threshold Value</label></th>
+                            <td><input name="threshold_value" type="number" id="threshold_value" value="<?php echo esc_attr( $threshold_value ); ?>" class="small-text" required>
+                            <p class="description">The maximum score (or percentage) required to achieve this tier.</p></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="submit" id="submit" class="button button-primary" value="<?php echo esc_attr( $submit_button_text ); ?>">
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=assessment-quiz-settings&tab=result_tiers' ) ); ?>" class="button button-secondary" style="margin-left: 10px;">Cancel</a>
+                </p>
+            </form>
         </div>
         <?php
     }
@@ -354,6 +454,53 @@ class Assessment_Quiz_Admin {
         require_once plugin_dir_path( __FILE__ ) . 'class-assessment-categories-list-table.php';
         Assessment_Categories_List_Table::delete_categories( $category_id );
         wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=categories&status=deleted' ) );
+        exit;
+    }
+
+    public function save_result_tier_data() {
+        if ( ! isset( $_POST['save_result_tier_nonce'] ) || ! wp_verify_nonce( $_POST['save_result_tier_nonce'], 'save_result_tier_action' ) ) {
+            wp_die( 'Security check failed' );
+        }
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'assessment_result_tiers';
+        $result_tier_id = isset( $_POST['result_tier_id'] ) ? intval( $_POST['result_tier_id'] ) : 0;
+        
+        $threshold_type = sanitize_key( $_POST['threshold_type'] );
+        if ( ! in_array( $threshold_type, ['percentage', 'value'] ) ) {
+            $threshold_type = 'value';
+        }
+
+        $data = [
+            'tier_name'       => sanitize_text_field( $_POST['tier_name'] ),
+            'tier_label'      => sanitize_text_field( $_POST['tier_label'] ),
+            'threshold_type'  => $threshold_type,
+            'threshold_value' => intval( $_POST['threshold_value'] ),
+        ];
+
+        if ( $result_tier_id ) {
+            $wpdb->update( $table_name, $data, [ 'id' => $result_tier_id ] );
+        } else {
+            $wpdb->insert( $table_name, $data );
+        }
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=result_tiers&status=saved' ) );
+        exit;
+    }
+
+    public function delete_result_tier_action() {
+        if ( empty( $_GET['result_tier_id'] ) || empty( $_GET['_wpnonce'] ) ) {
+            wp_die( 'Invalid request.' );
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have permission to delete this item.' );
+        }
+        $result_tier_id = absint( $_GET['result_tier_id'] );
+        $nonce = sanitize_text_field( $_GET['_wpnonce'] );
+        if ( ! wp_verify_nonce( $nonce, 'delete_result_tier_' . $result_tier_id ) ) {
+            wp_die( 'Security check failed.' );
+        }
+        require_once plugin_dir_path( __FILE__ ) . 'class-assessment-result-tiers-list-table.php';
+        Assessment_Result_Tiers_List_Table::delete_result_tiers( $result_tier_id );
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=result_tiers&status=deleted' ) );
         exit;
     }
 
