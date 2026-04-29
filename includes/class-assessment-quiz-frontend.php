@@ -3,7 +3,7 @@
  * The frontend-facing functionality of the plugin.
  *
  * @link       https://example.com
- * @since      1.0.0
+ * @since      1.4.0
  *
  * @package    Assessment_Quiz
  * @subpackage Assessment_Quiz/includes
@@ -18,7 +18,7 @@ class Assessment_Quiz_Frontend {
     /**
      * The ID of this plugin.
      *
-     * @since    1.0.0
+     * @since    1.4.0
      * @access   private
      * @var      string    $plugin_name    The ID of this plugin.
      */
@@ -27,7 +27,7 @@ class Assessment_Quiz_Frontend {
     /**
      * The version of this plugin.
      *
-     * @since    1.0.0
+     * @since    1.4.0
      * @access   private
      * @var      string    $version    The current version of this plugin.
      */
@@ -36,7 +36,7 @@ class Assessment_Quiz_Frontend {
     /**
      * Initialize the class and set its properties.
      *
-     * @since    1.0.0
+     * @since    1.4.0
      * @param      string    $plugin_name       The name of the plugin.
      * @param      string    $version    The version of this plugin.
      */
@@ -46,12 +46,16 @@ class Assessment_Quiz_Frontend {
 
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles_and_scripts' ) );
         $this->register_shortcode();
+
+        // Register the new, dedicated AJAX action for saving submissions
+        add_action( 'wp_ajax_save_quiz_submission', array( $this, 'save_quiz_submission_callback' ) );
+        add_action( 'wp_ajax_nopriv_save_quiz_submission', array( $this, 'save_quiz_submission_callback' ) );
     }
 
     /**
      * Register the stylesheets and scripts for the public-facing side of the site.
      *
-     * @since    1.0.0
+     * @since    1.4.0
      */
     public function enqueue_styles_and_scripts() {
         // Only enqueue scripts and styles on pages using the quiz template or containing the shortcode.
@@ -81,7 +85,8 @@ class Assessment_Quiz_Frontend {
             'assessmentQuizAjax', // Object name in JavaScript
             array(
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
-                'nonce'    => wp_create_nonce( 'assessment_quiz_nonce' )
+                'nonce'    => wp_create_nonce( 'assessment_quiz_nonce' ),
+                'save_action' => 'save_quiz_submission',
             )
         );
     }
@@ -143,6 +148,7 @@ class Assessment_Quiz_Frontend {
         $sections_table = $wpdb->prefix . 'assessment_sections';
         $questions_table = $wpdb->prefix . 'assessment_questions';
         $answers_table = $wpdb->prefix . 'assessment_answers';
+        $categories_table = $wpdb->prefix . 'assessment_categories';
 
         // 1. Get Quiz
         $quiz = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $quizzes_table WHERE id = %d", $quiz_id ) );
@@ -154,6 +160,9 @@ class Assessment_Quiz_Frontend {
         $quiz_data['title'] = stripslashes($quiz_data['title']);
         $quiz_data['description'] = wp_specialchars_decode(stripslashes($quiz_data['description']), ENT_QUOTES);
         $quiz_data['sections'] = array();
+        $quiz_data['categories'] = array();
+
+        $category_ids = array();
 
         // 2. Get Sections for the Quiz
         $sections = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $sections_table WHERE quiz_id = %d ORDER BY section_order ASC", $quiz_id ) );
@@ -172,6 +181,10 @@ class Assessment_Quiz_Frontend {
                 $question_data = (array) $question;
                 $question_data['question_text'] = wp_specialchars_decode(stripslashes($question_data['question_text']), ENT_QUOTES);
                 $question_data['question_type'] = $question->question_type;
+
+                if ( $question->category_id && ! in_array( $question->category_id, $category_ids ) ) {
+                    $category_ids[] = $question->category_id;
+                }
                 
                 // 4. Get Answers for each Question
                 $answers = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $answers_table WHERE question_id = %d ORDER BY answer_order ASC", $question->id ) );
@@ -188,6 +201,84 @@ class Assessment_Quiz_Frontend {
             $quiz_data['sections'][] = $section_data;
         }
 
+        // 5. Get Categories for the Quiz
+        if ( ! empty( $category_ids ) ) {
+            $category_ids_placeholders = implode( ',', array_fill( 0, count( $category_ids ), '%d' ) );
+            $query = $wpdb->prepare( "SELECT * FROM $categories_table WHERE id IN ($category_ids_placeholders)", $category_ids );
+            $categories = $wpdb->get_results( $query, OBJECT_K ); // Use OBJECT_K to key the array by category ID
+            
+            foreach ( $categories as $id => $category ) {
+                $categories[$id]->name = stripslashes($category->name);
+                $categories[$id]->description = wp_specialchars_decode(stripslashes($category->description), ENT_QUOTES);
+                $categories[$id]->focus_area_title = stripslashes($category->focus_area_title);
+                $categories[$id]->focus_area_description = wp_specialchars_decode(stripslashes($category->focus_area_description), ENT_QUOTES);
+                $categories[$id]->healing_plan_details = wp_specialchars_decode(stripslashes($category->healing_plan_details), ENT_QUOTES);
+            }
+            $quiz_data['categories'] = $categories;
+        }
+
         return $quiz_data;
+    }
+
+    /**
+     * AJAX handler for saving a quiz submission.
+     */
+    public function save_quiz_submission_callback() {
+        //check_ajax_referer( 'assessment_quiz_nonce', 'nonce' );
+        // Nonce check
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'assessment_quiz_nonce')) {
+            wp_send_json_error(array('message' => 'Nonce verification failed.'), 403);
+            return;
+        }
+
+        $quiz_id = isset( $_POST['quiz_id'] ) ? intval( $_POST['quiz_id'] ) : 0;
+        $answers = isset( $_POST['answers'] ) ? $_POST['answers'] : array();
+
+        if ( ! $quiz_id || empty( $answers ) ) {
+            wp_send_json_error( array( 'message' => 'Missing required data.' ) );
+            return;
+        }
+
+        $submission_id = $this->save_submission_data( $quiz_id, $answers );
+
+        if ( is_wp_error( $submission_id ) ) {
+            wp_send_json_error( array( 'message' => $submission_id->get_error_message() ) );
+        }
+
+        wp_send_json_success( array( 'message' => 'Submission saved successfully.', 'submission_id' => $submission_id ) );
+    }
+
+    /**
+     * Saves the submission data to the database.
+     *
+     * @param int   $quiz_id The ID of the quiz.
+     * @param array $answers The user's answers.
+     * @return int|WP_Error The new submission ID or a WP_Error on failure.
+     */
+    private function save_submission_data( $quiz_id, $answers ) {
+        global $wpdb;
+        $submissions_table = $wpdb->prefix . 'assessment_submissions';
+
+        $result = $wpdb->insert(
+            $submissions_table,
+            array(
+                'quiz_id'         => $quiz_id,
+                'user_id'         => get_current_user_id(),
+                'submitted_at'   => current_time( 'mysql' ),
+                'answers'         => wp_json_encode( $answers ),
+            ),
+            array(
+                '%d',
+                '%d',
+                '%s',
+                '%s',
+            )
+        );
+
+        if ( false === $result ) {
+            return new WP_Error( 'db_insert_error', 'Could not save submission to the database.' );
+        }
+
+        return $wpdb->insert_id;
     }
 }

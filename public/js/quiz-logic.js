@@ -11,6 +11,7 @@ jQuery(document).ready(function($) {
     const quizSectionProgressBar = $('#quiz-section-progress-bar');
     const quizQuestionProgressBar = $('#quiz-question-progress-bar');
     const quizBody = $('#quiz-body');
+    const quizResults = $('#quiz-results');
     const prevBtn = $('#prev-btn');
     const nextBtn = $('#next-btn');
     const submitBtn = $('#submit-btn');
@@ -18,6 +19,21 @@ jQuery(document).ready(function($) {
     let steps = [];
     let currentStepIndex = 0;
     const userAnswers = {};
+    let answerMap = {};
+
+    let categoryScores = {};
+    let sortedCategoryIds = [];
+    let currentResultIndex = 0;
+
+    function buildAnswerMap() {
+        assessmentQuizData.sections.forEach(section => {
+            (section.questions || []).forEach(question => {
+                (question.answers || []).forEach(answer => {
+                    answerMap[answer.id] = answer;
+                });
+            });
+        });
+    }
 
     // Build the sequence of steps for the quiz
     function buildSteps() {
@@ -144,11 +160,7 @@ jQuery(document).ready(function($) {
                 const answersContainer = $('<div class="answers-container"></div>');
 
                 const isMultipleChoice = question.question_type === 'multiple';
-                if (isMultipleChoice) {
-                    answersContainer.addClass('is-multiple-choice');
-                } else {
-                    answersContainer.addClass('is-single-choice');
-                }
+                answersContainer.addClass(isMultipleChoice ? 'is-multiple-choice' : 'is-single-choice');
 
                 // Check if any answer contains an image
                 const hasImages = question.answers.some(answer => answer.answer_text.includes('<img'));
@@ -162,17 +174,18 @@ jQuery(document).ready(function($) {
                     const inputName = `question_${question.id}`;
                     const input = $(`<input type="${inputType}" name="${inputName}">`).val(answer.id);
 
-                    if (isMultipleChoice) {
-                        if (userAnswers[question.id] && userAnswers[question.id].includes(answer.id)) {
-                            input.prop('checked', true);
-                            label.addClass('answer-selected');
-                        }
-                    } else {
-                        if (userAnswers[question.id] && userAnswers[question.id] == answer.id) {
-                            input.prop('checked', true);
-                            //if (answersContainer.hasClass('has-image-options')) {
-                            label.addClass('answer-selected');
-                            //}
+                    const answerData = userAnswers[question.id];
+                    if (answerData) {
+                        if (isMultipleChoice && Array.isArray(answerData)) {
+                            if (answerData.some(a => a.answerId == answer.id)) {
+                                input.prop('checked', true);
+                                label.addClass('answer-selected');
+                            }
+                        } else if (!isMultipleChoice && typeof answerData === 'object') {
+                            if (answerData.answerId == answer.id) {
+                                input.prop('checked', true);
+                                label.addClass('answer-selected');
+                            }
                         }
                     }
                     
@@ -193,18 +206,17 @@ jQuery(document).ready(function($) {
 
     function updateButtonVisibility() {
         prevBtn.toggle(currentStepIndex > 0);
-        const isLastStep = currentStepIndex === steps.length - 1;
-        nextBtn.toggle(!isLastStep);
-        submitBtn.toggle(isLastStep);
+        const isLastQuestionStep = !steps.slice(currentStepIndex + 1).some(step => step.type === 'question');
+        
+        nextBtn.toggle(!isLastQuestionStep && currentStepIndex < steps.length - 1);
+        submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
 
         const currentStep = steps[currentStepIndex];
         if (currentStep.type === 'question') {
             const question = currentStep.data;
             const isAnswerSelected = $(`input[name="question_${question.id}"]:checked`).length > 0;
             nextBtn.prop('disabled', !isAnswerSelected);
-            if (isLastStep) {
-                submitBtn.prop('disabled', !isAnswerSelected);
-            }
+            submitBtn.prop('disabled', !isAnswerSelected);
         } else {
             nextBtn.prop('disabled', false);
         }
@@ -214,23 +226,132 @@ jQuery(document).ready(function($) {
         const currentStep = steps[currentStepIndex];
         if (currentStep.type === 'question') {
             const question = currentStep.data;
-            const isMultipleChoice = question.question_type === 'multiple';
             const inputName = `question_${question.id}`;
+            const categoryId = question.category_id;
 
-            if (isMultipleChoice) {
+            const findAnswerData = (answerId) => answerMap[answerId] || null;
+
+            if (question.question_type === 'multiple') {
                 userAnswers[question.id] = $(`input[name="${inputName}"]:checked`).map(function() {
-                    return $(this).val();
+                    const answerId = $(this).val();
+                    const answerData = findAnswerData(answerId);
+                    return {
+                        answerId: answerId,
+                        points: answerData ? parseInt(answerData.points) : 0,
+                        categoryId: categoryId
+                    };
                 }).get();
             } else {
-                const selectedAnswer = $(`input[name="${inputName}"]:checked`).val();
-                if (selectedAnswer) {
-                    userAnswers[question.id] = selectedAnswer;
+                const selectedAnswerId = $(`input[name="${inputName}"]:checked`).val();
+                if (selectedAnswerId) {
+                    const answerData = findAnswerData(selectedAnswerId);
+                    userAnswers[question.id] = {
+                        answerId: selectedAnswerId,
+                        points: answerData ? parseInt(answerData.points) : 0,
+                        categoryId: categoryId
+                    };
+                } else {
+                    delete userAnswers[question.id];
                 }
             }
         }
     }
 
+    function calculateScores() {
+        Object.keys(assessmentQuizData.categories).forEach(catId => {
+            categoryScores[catId] = 0;
+        });
+
+        for (const questionId in userAnswers) {
+            const answerData = userAnswers[questionId];
+            if (Array.isArray(answerData)) { // Multiple choice
+                answerData.forEach(ans => {
+                    if (ans.categoryId && categoryScores.hasOwnProperty(ans.categoryId)) {
+                        categoryScores[ans.categoryId] += ans.points;
+                    }
+                });
+            } else { // Single choice
+                if (answerData.categoryId && categoryScores.hasOwnProperty(answerData.categoryId)) {
+                    categoryScores[answerData.categoryId] += answerData.points;
+                }
+            }
+        }
+    }
+
+    function renderResultPage(index) {
+        const categoryId = sortedCategoryIds[index];
+        const category = assessmentQuizData.categories[categoryId];
+        const score = categoryScores[categoryId];
+
+        let resultTier = 'high';
+        if (score <= category.low_threshold) {
+            resultTier = 'low';
+        } else if (score <= category.medium_threshold) {
+            resultTier = 'medium';
+        }
+        
+        const resultHtml = `
+            <div class="result-page" data-category-id="${categoryId}">
+                <div class="result-header">
+                    <h2>${category.name}</h2>
+                    <p class="result-score">Your Score: ${score}</p>
+                </div>
+                <div class="result-content">
+                    <div class="result-description">
+                        <h3>Your Result (Tier: ${resultTier})</h3>
+                        ${category.description}
+                    </div>
+                    <div class="result-focus-area">
+                        <h3>${category.focus_area_title}</h3>
+                        ${category.focus_area_description}
+                    </div>
+                    <div class="result-healing-plan">
+                        <h3>Healing Plan</h3>
+                        ${category.healing_plan_details}
+                    </div>
+                </div>
+                <div class="result-navigation">
+                    <button id="prev-result-btn" class="quiz-button">Previous Result</button>
+                    <span class="result-nav-status">${index + 1} / ${sortedCategoryIds.length}</span>
+                    <button id="next-result-btn" class="quiz-button">Next Result</button>
+                </div>
+            </div>
+        `;
+
+        quizResults.html(resultHtml);
+        updateResultNavButtons();
+    }
+
+    function updateResultNavButtons() {
+        $('#prev-result-btn').toggle(currentResultIndex > 0);
+        $('#next-result-btn').toggle(currentResultIndex < sortedCategoryIds.length - 1);
+    }
+
+    function displayResults() {
+        calculateScores();
+
+        quizHeader.hide();
+        quizSectionProgressBar.hide();
+        quizQuestionProgressBar.hide();
+        quizBody.hide();
+        prevBtn.hide();
+        nextBtn.hide();
+        submitBtn.hide();
+
+        quizResults.show();
+
+        sortedCategoryIds = Object.keys(assessmentQuizData.categories).sort((a, b) => a - b);
+
+        if (sortedCategoryIds.length > 0) {
+            currentResultIndex = 0;
+            renderResultPage(currentResultIndex);
+        } else {
+            quizResults.html('<p>There are no categorized results for this quiz.</p>');
+        }
+    }
+
     function initQuiz() {
+        buildAnswerMap();
         buildSteps();
         renderSectionTitles();
         renderStep(currentStepIndex);
@@ -245,8 +366,7 @@ jQuery(document).ready(function($) {
 
         e.preventDefault(); // Prevent the browser's default label behavior
         
-        const $label = $(this);
-        const $input = $label.find('input');
+        const $input = $(this).find('input');
 
         if ($input.is(':radio')) {
             // If it's already checked, do nothing.
@@ -266,7 +386,6 @@ jQuery(document).ready(function($) {
         const $this = $(this);
         const $answersContainer = $this.closest('.answers-container');
 
-        //if ($answersContainer.hasClass('has-image-options')) {
         if ($this.is(':radio')) {
             // For single-choice, remove selection from all labels in the group
             // and add it to the currently selected one.
@@ -276,13 +395,12 @@ jQuery(document).ready(function($) {
             // For multiple-choice, toggle the selection class.
             $this.closest('label').toggleClass('answer-selected', $this.is(':checked'));
         }
-        //}
 
+        saveCurrentAnswer();
         updateButtonVisibility();
     });
 
     nextBtn.on('click', function() {
-        saveCurrentAnswer();
         if (currentStepIndex < steps.length - 1) {
             currentStepIndex++;
             renderStep(currentStepIndex);
@@ -290,7 +408,6 @@ jQuery(document).ready(function($) {
     });
 
     prevBtn.on('click', function() {
-        saveCurrentAnswer();
         if (currentStepIndex > 0) {
             currentStepIndex--;
             renderStep(currentStepIndex);
@@ -298,41 +415,43 @@ jQuery(document).ready(function($) {
     });
 
     submitBtn.on('click', function() {
-        saveCurrentAnswer();
-        
-        $(this).prop('disabled', true).text('Submitting...');
+        $(this).prop('disabled', true).text('Calculating...');
+        displayResults();
 
         $.ajax({
             url: assessmentQuizAjax.ajax_url,
             type: 'POST',
             data: {
-                action: 'submit_assessment_quiz',
+                action: assessmentQuizAjax.save_action,
                 nonce: assessmentQuizAjax.nonce,
                 quiz_id: assessmentQuizData.id,
                 answers: userAnswers
             },
             success: function(response) {
                 if (response.success) {
-                    const resultHtml = `
-                        <div class="quiz-result">
-                            <h2></h2>
-                            <p>Your score: ${response.data.score}</p>
-                            <div></div>
-                        </div>
-                    `;
-                    quizContainer.html(resultHtml);
-                    quizContainer.find('h2').html(response.data.title);
-                    quizContainer.find('.quiz-result div').html(response.data.report);
+                    console.log('Quiz submission saved successfully.', response.data);
                 } else {
-                    alert('An error occurred: ' + (response.data ? response.data.message : 'Unknown error'));
-                    submitBtn.prop('disabled', false).text('Submit');
+                    console.error('Failed to save quiz submission:', response.data ? response.data.message : 'Unknown error');
                 }
             },
             error: function() {
-                alert('A server error occurred. Please try again.');
-                submitBtn.prop('disabled', false).text('Submit');
+                console.error('A server error occurred while saving quiz submission.');
             }
         });
+    });
+
+    quizResults.on('click', '#next-result-btn', function() {
+        if (currentResultIndex < sortedCategoryIds.length - 1) {
+            currentResultIndex++;
+            renderResultPage(currentResultIndex);
+        }
+    });
+
+    quizResults.on('click', '#prev-result-btn', function() {
+        if (currentResultIndex > 0) {
+            currentResultIndex--;
+            renderResultPage(currentResultIndex);
+        }
     });
 
     initQuiz();
