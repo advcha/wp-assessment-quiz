@@ -120,32 +120,69 @@ class Assessment_Quiz_Frontend {
         ?>
         <div class="assessment-result">
             <h2>Your Results</h2>
-            <div class="category-results-container">
-                <?php foreach ( $result_data['categories'] as $category_result ) : ?>
-                    <div class="category-result-card">
-                        <div class="category-result-header">
-                            <h3><?php echo esc_html( $category_result['category_name'] ); ?></h3>
-                            <span class="category-score-tier">
-                                <?php echo esc_html( $category_result['tier_name'] ); ?> (Score: <?php echo esc_html( $category_result['score'] ); ?>)
-                            </span>
-                        </div>
-                        <div class="category-result-body">
-                            <?php if (!empty($category_result['focus_area_title'])): ?>
-                                <div class="focus-area">
-                                    <h4><?php echo esc_html( $category_result['focus_area_title'] ); ?></h4>
-                                    <p><?php echo wp_kses_post( $category_result['focus_area_description'] ); ?></p>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (!empty($category_result['healing_plan_details'])): ?>
-                                <div class="healing-plan">
-                                    <h4>Healing Plan</h4>
-                                    <div><?php echo wp_kses_post( $category_result['healing_plan_details'] ); ?></div>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
+
+            <!-- Panel 1: Categories Summary -->
+            <div class="result-panel" id="category-summary-panel">
+                <h3>Categories Summary</h3>
+                <ol class="category-summary-list">
+                    <?php foreach ( $result_data['categories'] as $category_result ) : ?>
+                        <li>
+                            <div class="category-summary-item">
+                                <h4><?php echo esc_html( $category_result['category_name'] ); ?></h4>
+                                <?php if (!empty($category_result['category_description'])): ?>
+                                    <p class="category-description"><?php echo wp_kses_post( $category_result['category_description'] ); ?></p>
+                                <?php endif; ?>
+                                <span class="category-score-tier">
+                                    Result: <?php echo esc_html( $category_result['tier_name'] ); ?> (Score: <?php echo esc_html( $category_result['score'] ); ?>)
+                                </span>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
             </div>
+
+            <!-- Panel 2: Focus Areas -->
+            <?php
+            $focus_areas = array_filter($result_data['categories'], function($cat) {
+                return !empty($cat['focus_area_title']);
+            });
+            if (!empty($focus_areas)):
+            ?>
+            <div class="result-panel" id="focus-areas-panel">
+                <h3>Your Focus Areas</h3>
+                <ol class="focus-areas-list">
+                    <?php foreach ( $focus_areas as $category_result ) : ?>
+                        <li>
+                            <div class="focus-area-item">
+                                <h4><?php echo esc_html( $category_result['focus_area_title'] ); ?></h4>
+                                <?php if (!empty($category_result['focus_area_description'])): ?>
+                                    <p><?php echo wp_kses_post( $category_result['focus_area_description'] ); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </div>
+            <?php endif; ?>
+
+            <!-- Panel 3: Healing Plans -->
+            <?php
+            $healing_plans = array_filter($result_data['categories'], function($cat) {
+                return !empty($cat['healing_plan_details']);
+            });
+            if (!empty($healing_plans)):
+            ?>
+            <div class="result-panel" id="healing-plans-panel">
+                <h3>Your Healing Plan</h3>
+                <div class="healing-plans-container">
+                    <?php foreach ( $healing_plans as $category_result ) : ?>
+                        <div class="healing-plan-item">
+                            <?php echo wp_kses_post( $category_result['healing_plan_details'] ); ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
@@ -170,7 +207,7 @@ class Assessment_Quiz_Frontend {
 
         // 2. Get user's scores for the submission
         $scores = $wpdb->get_results( $wpdb->prepare(
-            "SELECT ss.category_id, ss.score, c.name as category_name
+            "SELECT ss.category_id, ss.score, c.name as category_name, c.description as category_description
             FROM $submission_scores_table ss
             JOIN $categories_table c ON ss.category_id = c.id
             WHERE ss.submission_id = %d",
@@ -242,6 +279,7 @@ class Assessment_Quiz_Frontend {
 
                 $result_data['categories'][] = array(
                     'category_name' => $score_data->category_name,
+                    'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
                     'score' => $score_data->score,
                     'tier_name' => $tier->tier_name,
                     'focus_area_title' => $category_result ? stripslashes($category_result->focus_area_title) : '',
@@ -252,6 +290,7 @@ class Assessment_Quiz_Frontend {
                 // Fallback if no tiers are configured at all for this quiz
                 $result_data['categories'][] = array(
                     'category_name' => $score_data->category_name,
+                    'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
                     'score' => $score_data->score,
                     'tier_name' => 'N/A',
                     'focus_area_title' => '',
