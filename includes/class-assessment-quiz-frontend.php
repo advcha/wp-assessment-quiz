@@ -133,7 +133,7 @@ class Assessment_Quiz_Frontend {
                                     <p class="category-description"><?php echo wp_kses_post( $category_result['category_description'] ); ?></p>
                                 <?php endif; ?>
                                 <span class="category-score-tier">
-                                    Result: <?php echo esc_html( $category_result['tier_name'] ); ?> (Score: <?php echo esc_html( $category_result['score'] ); ?>)
+                                    Result: <span class="tier-<?php echo sanitize_html_class( strtolower( $category_result['tier_name'] ) ); ?>"><?php echo esc_html( $category_result['tier_name'] ); ?></span> (Score: <?php echo esc_html( $category_result['score'] ); ?> of <?php echo esc_html( $category_result['total_possible_points'] ); ?>)
                                 </span>
                             </div>
                         </li>
@@ -281,6 +281,7 @@ class Assessment_Quiz_Frontend {
                     'category_name' => $score_data->category_name,
                     'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
                     'score' => $score_data->score,
+                    'total_possible_points' => $total_possible_points,
                     'tier_name' => $tier->tier_name,
                     'focus_area_title' => $category_result ? stripslashes($category_result->focus_area_title) : '',
                     'focus_area_description' => $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : 'Result details have not been configured for this tier.',
@@ -292,6 +293,7 @@ class Assessment_Quiz_Frontend {
                     'category_name' => $score_data->category_name,
                     'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
                     'score' => $score_data->score,
+                    'total_possible_points' => $total_possible_points,
                     'tier_name' => 'N/A',
                     'focus_area_title' => '',
                     'focus_area_description' => 'Result tiers have not been configured for this quiz.',
