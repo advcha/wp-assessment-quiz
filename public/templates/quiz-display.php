@@ -32,4 +32,15 @@ if ( ! defined( 'ABSPATH' ) ) {
         <button id="next-btn" style="display: none;">Next</button>
         <button id="submit-btn" style="display: none;">Submit</button>
     </div>
+    <!-- Spinner -->
+    <div id="quiz-spinner" style="display: none;">
+        <div class="spinner-container">
+            <div class="fancy-spinner">
+                <div class="bounce1"></div>
+                <div class="bounce2"></div>
+                <div class="bounce3"></div>
+            </div>
+            <p class="spinner-text">Processing your quiz...</p>
+        </div>
+    </div>
 </div>

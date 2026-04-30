@@ -106,6 +106,10 @@ body.page-template-template-quiz {
     vertical-align: middle;
 }
 
+#quiz-navigation {
+    text-align: center;
+}
+
 #quiz-navigation button {
     background-color: #3498db; /* A bright, clear blue */
     color: #ffffff;
@@ -147,6 +151,7 @@ body.page-template-template-quiz {
     font-size: 42px; /* Larger font size */
     font-weight: 700; /* Bolder font */
     margin-bottom: 20px; /* Add some space below the title */
+    text-align: center;
 }
 
 body.page-template-template-quiz .footer-width-fixer {
@@ -163,6 +168,10 @@ body.page-template-template-quiz .footer-width-fixer a {
 
 body.page-template-template-quiz .footer-width-fixer a:hover {
     color: #2980b9; /* A darker blue on hover */
+}
+
+.question-container {
+    text-align: center;
 }
 
 .question-container h4 {
@@ -336,6 +345,160 @@ body.page-template-template-quiz .footer-width-fixer a:hover {
 .answers-container.is-multiple-choice label.answer-selected {
     background-color: #4a6572;
     border-color: #3498db;
+}
+
+/* Result Page Styles */
+.assessment-result {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 1rem;
+}
+
+.assessment-result h2 {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 2.5rem;
+    color: #ecf0f1;
+}
+
+.category-results-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.category-result-card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.category-result-card:hover {
+    box-shadow: 0 6px burdensome-12px rgba(0,0,0,0.1);
+}
+
+.category-result-header {
+    background-color: #f7f7f7;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.category-result-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #444;
+}
+
+.category-score-tier {
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-radius: 15px;
+    background-color: #e9e9e9;
+    color: #555;
+}
+
+.category-result-body {
+    padding: 1.5rem;
+}
+
+.category-result-body h4 {
+    font-size: 1.3rem;
+    color: #555;
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 0.5rem;
+}
+
+.category-result-body p {
+    color: #555;
+    font-size: 1rem;
+}
+
+.focus-area, .healing-plan {
+    margin-bottom: 1.5rem;
+}
+
+.healing-plan div p {
+    margin-bottom: 1em;
+    line-height: 1.6;
+}
+
+.healing-plan div p:last-child {
+    margin-bottom: 0;
+}
+
+/* Fancy Spinner Styles */
+#quiz-spinner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(44, 62, 80, 0.85); /* Semi-transparent overlay matching the theme */
+    z-index: 1000;
+    display: flex; /* Use flexbox to center content */
+    justify-content: center;
+    align-items: center;
+}
+
+.spinner-container {
+    text-align: center;
+}
+
+.spinner-text {
+    color: #ecf0f1; /* Light text color from theme */
+    font-size: 18px;
+    margin-top: 20px;
+    font-weight: 600;
+}
+
+.fancy-spinner {
+    margin: 0 auto;
+    width: 100px;
+    text-align: center;
+}
+
+.fancy-spinner > div {
+    width: 18px;
+    height: 18px;
+    background-color: #3498db;
+    border-radius: 100%;
+    display: inline-block;
+    -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+    animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+}
+
+.fancy-spinner .bounce1 {
+    -webkit-animation-delay: -0.32s;
+    animation-delay: -0.32s;
+}
+
+.fancy-spinner .bounce2 {
+    -webkit-animation-delay: -0.16s;
+    animation-delay: -0.16s;
+}
+
+@-webkit-keyframes sk-bouncedelay {
+    0%, 80%, 100% { -webkit-transform: scale(0) }
+    40% { -webkit-transform: scale(1.0) }
+}
+
+@keyframes sk-bouncedelay {
+    0%, 80%, 100% {
+        transform: scale(0);
+        -webkit-transform: scale(0);
+    } 40% {
+        transform: scale(1.0);
+        -webkit-transform: scale(1.0);
+    }
 }
 
 @media (max-width: 768px) {

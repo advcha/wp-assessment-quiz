@@ -96,6 +96,172 @@ class Assessment_Quiz_Frontend {
      */
     public function register_shortcode() {
         add_shortcode( 'assessment_quiz', array( $this, 'display_quiz_shortcode' ) );
+        add_shortcode( 'assessment_quiz_result', array( $this, 'display_result_shortcode' ) );
+    }
+
+    public function display_result_shortcode( $atts ) {
+        $atts = shortcode_atts( array(
+            'submission_id' => 0,
+        ), $atts, 'assessment_quiz_result' );
+
+        $submission_id = intval( $atts['submission_id'] );
+
+        if ( ! $submission_id ) {
+            return '<p>Error: Submission ID is missing or invalid.</p>';
+        }
+
+        $result_data = $this->get_result_data( $submission_id );
+
+        if ( ! $result_data || empty($result_data['categories']) ) {
+            return '<p>Error: Could not retrieve result data. Please ensure you have configured categories, result tiers, and category results correctly.</p>';
+        }
+
+        ob_start();
+        ?>
+        <div class="assessment-result">
+            <h2>Your Results</h2>
+            <div class="category-results-container">
+                <?php foreach ( $result_data['categories'] as $category_result ) : ?>
+                    <div class="category-result-card">
+                        <div class="category-result-header">
+                            <h3><?php echo esc_html( $category_result['category_name'] ); ?></h3>
+                            <span class="category-score-tier">
+                                <?php echo esc_html( $category_result['tier_name'] ); ?> (Score: <?php echo esc_html( $category_result['score'] ); ?>)
+                            </span>
+                        </div>
+                        <div class="category-result-body">
+                            <?php if (!empty($category_result['focus_area_title'])): ?>
+                                <div class="focus-area">
+                                    <h4><?php echo esc_html( $category_result['focus_area_title'] ); ?></h4>
+                                    <p><?php echo wp_kses_post( $category_result['focus_area_description'] ); ?></p>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (!empty($category_result['healing_plan_details'])): ?>
+                                <div class="healing-plan">
+                                    <h4>Healing Plan</h4>
+                                    <div><?php echo wp_kses_post( $category_result['healing_plan_details'] ); ?></div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    private function get_result_data( $submission_id ) {
+        global $wpdb;
+        $submissions_table = $wpdb->prefix . 'assessment_submissions';
+        $submission_scores_table = $wpdb->prefix . 'assessment_submission_scores';
+        $categories_table = $wpdb->prefix . 'assessment_categories';
+        $result_tiers_table = $wpdb->prefix . 'assessment_result_tiers';
+        $category_results_table = $wpdb->prefix . 'assessment_category_results';
+        $questions_table = $wpdb->prefix . 'assessment_questions';
+        $answers_table = $wpdb->prefix . 'assessment_answers';
+        $sections_table = $wpdb->prefix . 'assessment_sections';
+
+        // 1. Get quiz_id from submission
+        $quiz_id = $wpdb->get_var($wpdb->prepare("SELECT quiz_id FROM $submissions_table WHERE id = %d", $submission_id));
+        if (!$quiz_id) {
+            return null;
+        }
+
+        // 2. Get user's scores for the submission
+        $scores = $wpdb->get_results( $wpdb->prepare(
+            "SELECT ss.category_id, ss.score, c.name as category_name
+            FROM $submission_scores_table ss
+            JOIN $categories_table c ON ss.category_id = c.id
+            WHERE ss.submission_id = %d",
+            $submission_id
+        ), OBJECT_K ); // Key by category_id
+
+        if ( empty( $scores ) ) {
+            return null;
+        }
+
+        $category_ids = array_keys($scores);
+        $placeholders = implode( ',', array_fill( 0, count( $category_ids ), '%d' ) );
+
+        // 3. Get max possible points for each relevant category in this quiz
+        $sql = $wpdb->prepare(
+            "SELECT
+                q.category_id,
+                SUM(
+                    IF(
+                        q.question_type = 'multiple',
+                        (SELECT SUM(points) FROM {$answers_table} a WHERE a.question_id = q.id AND a.points > 0),
+                        (SELECT MAX(points) FROM {$answers_table} a WHERE a.question_id = q.id)
+                    )
+                ) AS total_max_points
+            FROM
+                {$questions_table} q
+            JOIN
+                {$sections_table} s ON q.section_id = s.id
+            WHERE
+                s.quiz_id = %d AND q.category_id IN ($placeholders)
+            GROUP BY
+                q.category_id",
+            array_merge([$quiz_id], $category_ids)
+        );
+        $total_possible_points_per_category = $wpdb->get_results($sql, OBJECT_K);
+
+        $result_data = array(
+            'submission_id' => $submission_id,
+            'categories' => array(),
+        );
+
+        // 4. Process each category score
+        foreach ( $scores as $category_id => $score_data ) {
+            $total_possible_points = isset($total_possible_points_per_category[$category_id]) ? $total_possible_points_per_category[$category_id]->total_max_points : 0;
+
+            $percentage = ($total_possible_points > 0) ? ( $score_data->score / $total_possible_points ) * 100 : 0;
+            $rounded_percentage = round($percentage);
+
+            // Look for a matching tier. Prioritize 'percentage' type, but fall back to 'value' type.
+            // This makes the system more flexible, as you pointed out.
+            $tier = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'percentage' AND threshold_value <= %d ORDER BY threshold_value DESC LIMIT 1",
+                $rounded_percentage
+            ) );
+
+            if ( ! $tier ) {
+                $tier = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'value' AND threshold_value <= %d ORDER BY threshold_value DESC LIMIT 1",
+                    $score_data->score
+                ) );
+            }
+
+            if ( $tier ) {
+                $category_result = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT * FROM $category_results_table WHERE category_id = %d AND result_tier_id = %d",
+                    $category_id,
+                    $tier->id
+                ) );
+
+                $result_data['categories'][] = array(
+                    'category_name' => $score_data->category_name,
+                    'score' => $score_data->score,
+                    'tier_name' => $tier->tier_name,
+                    'focus_area_title' => $category_result ? stripslashes($category_result->focus_area_title) : '',
+                    'focus_area_description' => $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : 'Result details have not been configured for this tier.',
+                    'healing_plan_details' => $category_result ? wp_specialchars_decode(stripslashes($category_result->healing_plan_details), ENT_QUOTES) : '',
+                );
+            } else {
+                // Fallback if no tiers are configured at all for this quiz
+                $result_data['categories'][] = array(
+                    'category_name' => $score_data->category_name,
+                    'score' => $score_data->score,
+                    'tier_name' => 'N/A',
+                    'focus_area_title' => '',
+                    'focus_area_description' => 'Result tiers have not been configured for this quiz.',
+                    'healing_plan_details' => '',
+                );
+            }
+        }
+
+        return $result_data;
     }
 
     /**
@@ -224,7 +390,6 @@ class Assessment_Quiz_Frontend {
      * AJAX handler for saving a quiz submission.
      */
     public function save_quiz_submission_callback() {
-        //check_ajax_referer( 'assessment_quiz_nonce', 'nonce' );
         // Nonce check
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'assessment_quiz_nonce')) {
             wp_send_json_error(array('message' => 'Nonce verification failed.'), 403);
@@ -243,9 +408,75 @@ class Assessment_Quiz_Frontend {
 
         if ( is_wp_error( $submission_id ) ) {
             wp_send_json_error( array( 'message' => $submission_id->get_error_message() ) );
-        }
+        } else {
+            // Calculate and save scores
+            $this->calculate_and_save_scores($submission_id, $quiz_id, $answers);
 
-        wp_send_json_success( array( 'message' => 'Submission saved successfully.', 'submission_id' => $submission_id ) );
+            // Get result HTML
+            $result_html = $this->display_result_shortcode(array('submission_id' => $submission_id));
+
+            wp_send_json_success( array( 
+                'message' => 'Submission saved successfully.', 
+                'submission_id' => $submission_id,
+                'result_html' => $result_html
+            ) );
+        }
+    }
+
+    private function calculate_and_save_scores($submission_id, $quiz_id, $answers) {
+        global $wpdb;
+        $questions_table = $wpdb->prefix . 'assessment_questions';
+        $answers_table = $wpdb->prefix . 'assessment_answers';
+        $submission_scores_table = $wpdb->prefix . 'assessment_submission_scores';
+    
+        $category_scores = array();
+    
+        foreach ($answers as $question_id => $submitted_answers) {
+            // Get category_id for the question from the DB to be safe
+            $category_id = $wpdb->get_var($wpdb->prepare("SELECT category_id FROM $questions_table WHERE id = %d", $question_id));
+    
+            if ($category_id) {
+                if (!isset($category_scores[$category_id])) {
+                    $category_scores[$category_id] = 0;
+                }
+    
+                // Normalize submitted_answers to an array of answers
+                // Check if the first key is numeric (like for multiple choice) or a string (like 'answerId' for single choice)
+                $is_multiple_choice = isset($submitted_answers[0]);
+    
+                if ($is_multiple_choice) {
+                    // It's an array of answers (multiple choice)
+                    $answer_list = $submitted_answers;
+                } else {
+                    // It's a single answer object
+                    $answer_list = array($submitted_answers);
+                }
+    
+                foreach ($answer_list as $answer_data) {
+                    if (isset($answer_data['answerId'])) {
+                        $answer_id = $answer_data['answerId'];
+                        // Get points from DB for security
+                        $points = $wpdb->get_var($wpdb->prepare("SELECT points FROM $answers_table WHERE id = %d", $answer_id));
+                        if (!is_null($points)) {
+                            $category_scores[$category_id] += $points;
+                        }
+                    }
+                }
+            }
+        }
+    
+        // Save the scores for each category
+        foreach ($category_scores as $category_id => $score) {
+            $wpdb->insert(
+                $submission_scores_table,
+                array(
+                    'submission_id' => $submission_id,
+                    'category_id' => $category_id,
+                    'score' => $score,
+                ),
+                array('%d', '%d', '%d')
+            );
+        }
     }
 
     /**

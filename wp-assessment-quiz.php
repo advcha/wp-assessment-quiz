@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '1.7.0' );
+define( 'ASSESSMENT_QUIZ_VERSION', '1.8.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -287,6 +287,20 @@ final class Assessment_Quiz {
             chosen_answers TEXT,
             PRIMARY KEY (id),
             KEY submission_id (submission_id)
+        ) $charset_collate;";
+        dbDelta( $sql );
+
+        // Table for Submission Scores by Category
+        $table_name = $table_prefix . 'assessment_submission_scores';
+        $sql = "CREATE TABLE $table_name (
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+            submission_id INT(10) UNSIGNED NOT NULL,
+            category_id TINYINT(5) UNSIGNED NOT NULL,
+            score INT NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY submission_category (submission_id, category_id),
+            FOREIGN KEY (submission_id) REFERENCES {$table_prefix}assessment_submissions(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES {$table_prefix}assessment_categories(id) ON DELETE CASCADE
         ) $charset_collate;";
         dbDelta( $sql );
     }

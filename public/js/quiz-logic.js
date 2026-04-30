@@ -15,6 +15,7 @@ jQuery(document).ready(function($) {
     const prevBtn = $('#prev-btn');
     const nextBtn = $('#next-btn');
     const submitBtn = $('#submit-btn');
+    const quizSpinner = $('#quiz-spinner');
 
     let steps = [];
     let currentStepIndex = 0;
@@ -416,6 +417,8 @@ jQuery(document).ready(function($) {
 
     submitBtn.on('click', function() {
         $(this).prop('disabled', true).text('Calculating...');
+        $('#quiz-navigation').hide();
+        quizSpinner.css('display', 'flex');
         displayResults();
 
         $.ajax({
@@ -428,14 +431,36 @@ jQuery(document).ready(function($) {
                 answers: userAnswers
             },
             success: function(response) {
+                quizSpinner.hide();
                 if (response.success) {
-                    console.log('Quiz submission saved successfully.', response.data);
+                    // On success, replace the quiz form with the result HTML
+                    var quizContainer = $('#assessment-quiz-container');
+                    if (quizContainer.length) {
+                        quizContainer.html(response.data.result_html);
+                        // Optional: Scroll to the top of the results
+                        $('html, body').animate({
+                            scrollTop: quizContainer.offset().top
+                        }, 500);
+                    } else {
+                         // Fallback if the container is not found
+                        alert('Quiz submitted successfully! Check your results.');
+                    }
                 } else {
-                    console.error('Failed to save quiz submission:', response.data ? response.data.message : 'Unknown error');
+                    // Display error message
+                    $('#quiz-submission-feedback').html('<p>Error: ' + response.data.message + '</p>').show();
+                    submitBtn.prop('disabled', false);
+                    $('#quiz-navigation').show();
                 }
             },
-            error: function() {
-                console.error('A server error occurred while saving quiz submission.');
+            error: function(jqXHR, textStatus, errorThrown) {
+                quizSpinner.hide();
+                //console.error('A server error occurred while saving quiz submission.');
+                // Display error message
+                //$('#quiz-submission-feedback').html('<p>Error: ' + response.data.message + '</p>').show();
+                $('#quiz-submission-feedback').html('<p>An unexpected error occurred. Please try again.</p>').show();
+                console.error("AJAX Error:", textStatus, errorThrown);
+                submitBtn.prop('disabled', false);
+                $('#quiz-navigation').show();
             }
         });
     });
