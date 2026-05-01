@@ -425,8 +425,8 @@ class Assessment_Quiz_Admin {
         $category_id = $result ? $result['category_id'] : '';
         $result_tier_id = $result ? $result['result_tier_id'] : '';
         $focus_area_title = $result ? $result['focus_area_title'] : '';
-        $focus_area_description = $result ? $result['focus_area_description'] : '';
-        $healing_plan_details = $result ? $result['healing_plan_details'] : '';
+        $focus_area_description = $result ? wp_unslash( $result['focus_area_description'] ) : '';
+        $healing_plan_details = $result ? wp_unslash( $result['healing_plan_details'] ) : '';
 
         $categories_table = $wpdb->prefix . 'assessment_categories';
         $categories = $wpdb->get_results( "SELECT id, name FROM {$categories_table} ORDER BY name ASC" );
