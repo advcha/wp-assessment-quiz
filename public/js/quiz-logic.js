@@ -328,6 +328,56 @@ jQuery(document).ready(function($) {
         $('#next-result-btn').toggle(currentResultIndex < sortedCategoryIds.length - 1);
     }
 
+    function initializeResultActions() {
+        const $actionsPanel = $('#actions-panel');
+        if (!$actionsPanel.length) {
+            return; // Exit if the actions panel isn't on the page
+        }
+    
+        const submissionId = $actionsPanel.data('submission-id');
+        const $emailBtn = $('#send-result-email-btn');
+        const $emailInput = $('#result-email-input');
+        const $statusMsg = $('.email-status-message');
+    
+        // Use .off().on() to prevent binding multiple click handlers
+        $emailBtn.off('click').on('click', function() {
+            const email = $emailInput.val();
+            if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+                $statusMsg.text('Please enter a valid email address.').css('color', 'red');
+                return;
+            }
+    
+            const $this = $(this);
+            $this.prop('disabled', true).text('Sending...');
+            $statusMsg.text('').css('color', '');
+    
+            $.ajax({
+                url: assessmentQuizAjax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: assessmentQuizAjax.email_action,
+                    nonce: assessmentQuizAjax.nonce,
+                    submission_id: submissionId,
+                    email: email
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $statusMsg.text(response.data.message).css('color', 'green');
+                        $emailInput.val(''); // Clear input on success
+                    } else {
+                        $statusMsg.text(response.data.message).css('color', 'red');
+                    }
+                },
+                error: function() {
+                    $statusMsg.text('An unexpected error occurred. Please try again.').css('color', 'red');
+                },
+                complete: function() {
+                    $this.prop('disabled', false).text('Send Email');
+                }
+            });
+        });
+    }
+
     function displayResults() {
         calculateScores();
 
@@ -437,6 +487,8 @@ jQuery(document).ready(function($) {
                     var quizContainer = $('#assessment-quiz-container');
                     if (quizContainer.length) {
                         quizContainer.html(response.data.result_html);
+                        initializeResultActions(); // Initialize actions for the new result content
+                        
                         // Optional: Scroll to the top of the results
                         $('html, body').animate({
                             scrollTop: quizContainer.offset().top
@@ -480,4 +532,7 @@ jQuery(document).ready(function($) {
     });
 
     initQuiz();
+
+    // Initial check in case the page loads directly with results (e.g., a shared link)
+    initializeResultActions();
 });

@@ -50,6 +50,10 @@ class Assessment_Quiz_Frontend {
         // Register the new, dedicated AJAX action for saving submissions
         add_action( 'wp_ajax_save_quiz_submission', array( $this, 'save_quiz_submission_callback' ) );
         add_action( 'wp_ajax_nopriv_save_quiz_submission', array( $this, 'save_quiz_submission_callback' ) );
+
+        // Register AJAX action for sending result emails
+        add_action( 'wp_ajax_send_quiz_result_email', array( $this, 'send_quiz_result_email_callback' ) );
+        add_action( 'wp_ajax_nopriv_send_quiz_result_email', array( $this, 'send_quiz_result_email_callback' ) );
     }
 
     /**
@@ -87,6 +91,7 @@ class Assessment_Quiz_Frontend {
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'assessment_quiz_nonce' ),
                 'save_action' => 'save_quiz_submission',
+                'email_action' => 'send_quiz_result_email',
             )
         );
     }
@@ -102,9 +107,11 @@ class Assessment_Quiz_Frontend {
     public function display_result_shortcode( $atts ) {
         $atts = shortcode_atts( array(
             'submission_id' => 0,
+            'for_email'     => false,
         ), $atts, 'assessment_quiz_result' );
 
         $submission_id = intval( $atts['submission_id'] );
+        $for_email     = filter_var( $atts['for_email'], FILTER_VALIDATE_BOOLEAN );
 
         if ( ! $submission_id ) {
             return '<p>Error: Submission ID is missing or invalid.</p>';
@@ -183,6 +190,29 @@ class Assessment_Quiz_Frontend {
                 </div>
             </div>
             <?php endif; ?>
+
+            <?php if ( ! $for_email ) : ?>
+                <!-- Panel 4: Actions -->
+                <div class="result-panel" id="actions-panel" data-submission-id="<?php echo esc_attr( $submission_id ); ?>">
+                    <h3>Next Steps</h3>
+                    <div class="actions-container">
+                        <div class="action-item email-results">
+                            <h4>Email Your Results</h4>
+                            <p>Enter your email address to receive a copy of your results.</p>
+                            <div class="email-form">
+                                <input type="email" id="result-email-input" placeholder="your.email@example.com">
+                                <button id="send-result-email-btn">Send Email</button>
+                                <p class="email-status-message"></p>
+                            </div>
+                        </div>
+                        <div class="action-item webinar-signup">
+                            <h4>Join Our Webinar</h4>
+                            <p>Learn more about how to apply these insights by joining our free webinar.</p>
+                            <a href="https://example.com/webinar-registration" class="webinar-btn" target="_blank">Register Now</a>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
@@ -259,13 +289,13 @@ class Assessment_Quiz_Frontend {
             // Look for a matching tier. Prioritize 'percentage' type, but fall back to 'value' type.
             // This makes the system more flexible, as you pointed out.
             $tier = $wpdb->get_row( $wpdb->prepare(
-                "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'percentage' AND threshold_value <= %d ORDER BY threshold_value DESC LIMIT 1",
+                "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'percentage' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
                 $rounded_percentage
             ) );
 
             if ( ! $tier ) {
                 $tier = $wpdb->get_row( $wpdb->prepare(
-                    "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'value' AND threshold_value <= %d ORDER BY threshold_value DESC LIMIT 1",
+                    "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'value' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
                     $score_data->score
                 ) );
             }
@@ -461,6 +491,45 @@ class Assessment_Quiz_Frontend {
                 'submission_id' => $submission_id,
                 'result_html' => $result_html
             ) );
+        }
+    }
+
+    public function send_quiz_result_email_callback() {
+        // Nonce check
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'assessment_quiz_nonce')) {
+            wp_send_json_error(array('message' => 'Nonce verification failed.'), 403);
+            return;
+        }
+    
+        $submission_id = isset($_POST['submission_id']) ? intval($_POST['submission_id']) : 0;
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+    
+        if (!$submission_id || !is_email($email)) {
+            wp_send_json_error(array('message' => 'Invalid submission ID or email address.'));
+            return;
+        }
+    
+        // Generate the result HTML again
+        $result_html = $this->display_result_shortcode(array(
+            'submission_id' => $submission_id,
+            'for_email'     => true,
+        ));
+    
+        $subject = 'Your Quiz Results';
+        $headers = array('Content-Type: text/html; charset=UTF-8');
+        
+        // To make it look better in email clients, wrap it in a basic HTML structure.
+        $email_body = '<html><head><style>' . file_get_contents(plugin_dir_path( __FILE__ ) . '../public/css/quiz-styles.css') . '</style></head><body>';
+        $email_body .= '<h1>Your Assessment Results</h1>';
+        $email_body .= $result_html;
+        $email_body .= '</body></html>';
+    
+        $sent = wp_mail($email, $subject, $email_body, $headers);
+    
+        if ($sent) {
+            wp_send_json_success(array('message' => 'Your results have been sent to your email.'));
+        } else {
+            wp_send_json_error(array('message' => 'There was a problem sending your results. Please try again.'));
         }
     }
 

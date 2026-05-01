@@ -473,33 +473,6 @@ body.page-template-template-quiz .footer-width-fixer a:hover {
     margin-bottom: 0;
 }
 
-.category-result-card {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-    overflow: hidden;
-    transition: box-shadow 0.3s ease;
-}
-
-.category-result-card:hover {
-    box-shadow: 0 6px burdensome-12px rgba(0,0,0,0.1);
-}
-
-.category-result-header {
-    background-color: #f7f7f7;
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.category-result-header h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #444;
-}
 
 .category-score-tier {
     font-size: 1.1rem;
@@ -539,6 +512,81 @@ body.page-template-template-quiz .footer-width-fixer a:hover {
 
 .healing-plan div p:last-child {
     margin-bottom: 0;
+}
+
+#actions-panel {
+    background-color: #f0f4f8; /* A slightly different background for the actions panel */
+}
+
+.actions-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
+}
+
+.action-item h4 {
+    color: #2c3e50;
+    font-size: 1.2em;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.action-item p {
+    color: #555;
+    font-size: 1rem;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.email-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.email-form input[type="email"] {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+
+.email-form button,
+.webinar-btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    transition: background-color 0.3s ease;
+}
+
+.email-form button {
+    background-color: #28a745; /* Green */
+    color: white;
+}
+
+.email-form button:hover {
+    background-color: #218838;
+}
+
+.webinar-btn {
+    display: inline-block;
+    background-color: #007bff; /* Blue */
+    color: white;
+    text-decoration: none;
+}
+
+.webinar-btn:hover {
+    background-color: #0056b3;
+}
+
+.email-status-message {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    font-weight: bold;
 }
 
 /* Fancy Spinner Styles */
