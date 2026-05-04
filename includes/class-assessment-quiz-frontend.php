@@ -508,6 +508,9 @@ class Assessment_Quiz_Frontend {
             wp_send_json_error(array('message' => 'Invalid submission ID or email address.'));
             return;
         }
+
+        // Subscribe to ConvertKit
+        $this->subscribe_to_convertkit($email);
     
         // Generate the result HTML again
         $result_html = $this->display_result_shortcode(array(
@@ -530,6 +533,48 @@ class Assessment_Quiz_Frontend {
             wp_send_json_success(array('message' => 'Your results have been sent to your email.'));
         } else {
             wp_send_json_error(array('message' => 'There was a problem sending your results. Please try again.'));
+        }
+    }
+
+    private function subscribe_to_convertkit($email) {
+        $api_key = get_option('assessment_quiz_convertkit_api_key');
+        $form_id = get_option('assessment_quiz_convertkit_form_id');
+
+        if (empty($api_key) || empty($form_id)) {
+            error_log('ConvertKit Debug: API Key or Form ID is missing in settings.');
+            return; // Don't do anything if settings are missing
+        }
+
+        $url = "https://api.convertkit.com/v3/forms/{$form_id}/subscribe";
+
+        $body = array(
+            'api_key' => $api_key,
+            'email'   => $email,
+        );
+
+        $args = array(
+            'body'    => json_encode($body),
+            'headers' => array(
+                'Content-Type' => 'application/json; charset=utf-8',
+            ),
+            'timeout' => 15, // 15 seconds
+        );
+
+        // Use wp_remote_post to send the request
+        $response = wp_remote_post($url, $args);
+
+        // Debugging: Log the response from ConvertKit
+        if (is_wp_error($response)) {
+            // Log WordPress-level errors (e.g., cURL errors, DNS issues)
+            error_log('ConvertKit WP Error: ' . $response->get_error_message());
+        } else {
+            // Log the response from ConvertKit's server
+            $response_code = wp_remote_retrieve_response_code($response);
+            $response_body = wp_remote_retrieve_body($response);
+            
+            // Log everything for debugging purposes
+            error_log('ConvertKit API Response Code: ' . $response_code);
+            error_log('ConvertKit API Response Body: ' . $response_body);
         }
     }
 
