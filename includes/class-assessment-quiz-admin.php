@@ -32,6 +32,8 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_action_delete_result_tier', array( $this, 'delete_result_tier_action' ) );
         add_action( 'admin_post_save_category_result_action', array( $this, 'save_category_result_data' ) );
         add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
+        add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
+        add_action( 'admin_post_save_convertkit_settings', array( $this, 'save_convertkit_settings' ) );
     }
 
     public function enqueue_styles_and_scripts( $hook ) {
@@ -188,6 +190,7 @@ class Assessment_Quiz_Admin {
                 <a href="?page=assessment-quiz-settings&tab=categories" class="nav-tab <?php echo $active_tab == 'categories' ? 'nav-tab-active' : ''; ?>">Categories</a>
                 <a href="?page=assessment-quiz-settings&tab=result_tiers" class="nav-tab <?php echo $active_tab == 'result_tiers' ? 'nav-tab-active' : ''; ?>">Result Tiers</a>
                 <a href="?page=assessment-quiz-settings&tab=category_results" class="nav-tab <?php echo $active_tab == 'category_results' ? 'nav-tab-active' : ''; ?>">Category Results</a>
+                <a href="?page=assessment-quiz-settings&tab=convertkit" class="nav-tab <?php echo $active_tab == 'convertkit' ? 'nav-tab-active' : ''; ?>">ConvertKit</a>
             </h2>
 
             <?php
@@ -198,6 +201,8 @@ class Assessment_Quiz_Admin {
                 $this->display_result_tiers_tab_content();
             } elseif ( $active_tab == 'category_results' ) {
                 $this->display_category_results_tab_content();
+            } elseif ( $active_tab == 'convertkit' ) {
+                $this->display_convertkit_tab_content();
             }
             ?>
         </div>
@@ -214,6 +219,8 @@ class Assessment_Quiz_Admin {
                             $confirm_message = 'Are you sure you want to delete the selected Result Tier?';
                         } elseif ( $active_tab === 'category_results' ) {
                             $confirm_message = 'Are you sure you want to delete the selected Category Results?';
+                        } elseif ( $active_tab === 'convertkit' ) {
+                            $confirm_message = 'Are you sure you want to delete the selected ConvertKit settings?';
                         }
                         ?>
                         var message = '<?php echo esc_js( $confirm_message ); ?>';
@@ -225,6 +232,67 @@ class Assessment_Quiz_Admin {
             });
         </script>
         <?php
+    }
+
+    public function display_convertkit_tab_content() {
+        ?>
+        <div class="wrap">
+            <h2>ConvertKit Settings</h2>
+            <?php if ( ! empty( $_GET['status'] ) && $_GET['status'] === 'saved' ) : ?>
+                <div id="message" class="updated notice is-dismissible">
+                    <p><?php esc_html_e( 'Settings saved successfully.', 'assessment-quiz' ); ?></p>
+                </div>
+            <?php endif; ?>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="save_convertkit_settings">
+                <?php wp_nonce_field( 'save_convertkit_settings', 'convertkit_settings_nonce' ); ?>
+
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="convertkit_api_key">API Key</label></th>
+                            <td>
+                                <input name="convertkit_api_key" type="text" id="convertkit_api_key" value="<?php echo esc_attr( get_option( 'assessment_quiz_convertkit_api_key' ) ); ?>" class="regular-text">
+                                <p class="description">Enter your ConvertKit API Key (from Legacy settings).</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="convertkit_form_id">Form ID</label></th>
+                            <td>
+                                <input name="convertkit_form_id" type="text" id="convertkit_form_id" value="<?php echo esc_attr( get_option( 'assessment_quiz_convertkit_form_id' ) ); ?>" class="regular-text">
+                                <p class="description">Enter the ID of the ConvertKit form to subscribe users to.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <?php submit_button(); ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public function save_convertkit_settings() {
+        // Check nonce for security
+        if ( ! isset( $_POST['convertkit_settings_nonce'] ) || ! wp_verify_nonce( $_POST['convertkit_settings_nonce'], 'save_convertkit_settings' ) ) {
+            wp_die( 'Security check failed' );
+        }
+
+        // Check for user capabilities
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have sufficient permissions to access this page.' );
+        }
+
+        if ( isset( $_POST['convertkit_api_key'] ) ) {
+            update_option( 'assessment_quiz_convertkit_api_key', sanitize_text_field( $_POST['convertkit_api_key'] ) );
+        }
+
+        if ( isset( $_POST['convertkit_form_id'] ) ) {
+            update_option( 'assessment_quiz_convertkit_form_id', sanitize_text_field( $_POST['convertkit_form_id'] ) );
+        }
+
+        // Redirect back to the settings page
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=convertkit&status=saved' ) );
+        exit;
     }
 
     public function display_result_tiers_tab_content() {
