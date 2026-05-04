@@ -119,14 +119,14 @@ class Assessment_Quiz_Admin {
             array( $this, 'display_settings_page' )
         );
 
-        add_submenu_page(
+        /*add_submenu_page(
             'assessment-quiz',
             'Submissions',
             'Submissions',
             'manage_options',
             'assessment-quiz-submissions',
             array( $this, 'display_submissions_page' )
-        );
+        );*/
     }
 
     public function display_quizzes_page() {
