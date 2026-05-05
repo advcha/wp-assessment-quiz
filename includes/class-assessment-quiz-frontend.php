@@ -177,7 +177,7 @@ class Assessment_Quiz_Frontend {
             $healing_plans = array_filter($result_data['categories'], function($cat) {
                 return !empty($cat['healing_plan_details']);
             });
-            if (!empty($healing_plans)):
+            if ($for_email && !empty($healing_plans)):
             ?>
             <div class="result-panel" id="healing-plans-panel">
                 <h3>Your Healing Plan</h3>
