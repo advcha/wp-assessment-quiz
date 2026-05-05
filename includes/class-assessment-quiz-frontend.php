@@ -539,6 +539,7 @@ class Assessment_Quiz_Frontend {
     private function subscribe_to_convertkit($email) {
         $api_key = get_option('assessment_quiz_convertkit_api_key');
         $form_id = get_option('assessment_quiz_convertkit_form_id');
+        $tags_string = get_option('assessment_quiz_convertkit_tags');
 
         if (empty($api_key) || empty($form_id)) {
             error_log('ConvertKit Debug: API Key or Form ID is missing in settings.');
@@ -552,6 +553,15 @@ class Assessment_Quiz_Frontend {
             'email'   => $email,
         );
 
+        if ( ! empty( $tags_string ) ) {
+            $tag_ids = array_map( 'intval', array_map( 'trim', explode( ',', $tags_string ) ) );
+            $tag_ids = array_filter( $tag_ids );
+
+            if ( ! empty( $tag_ids ) ) {
+                $body['tags'] = $tag_ids;
+            }
+        }
+        
         $args = array(
             'body'    => json_encode($body),
             'headers' => array(

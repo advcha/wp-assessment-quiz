@@ -263,6 +263,13 @@ class Assessment_Quiz_Admin {
                                 <p class="description">Enter the ID of the ConvertKit form to subscribe users to.</p>
                             </td>
                         </tr>
+                        <tr valign="top">
+                            <th scope="row">Tags</th>
+                            <td>
+                                <input type="text" name="convertkit_tags" value="<?php echo esc_attr( get_option('assessment_quiz_convertkit_tags') ); ?>" class="regular-text" />
+                                <p class="description">Enter comma-separated tag IDs to add to new subscribers. e.g., 12345, 67890</p>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
                 <?php submit_button(); ?>
@@ -288,6 +295,10 @@ class Assessment_Quiz_Admin {
 
         if ( isset( $_POST['convertkit_form_id'] ) ) {
             update_option( 'assessment_quiz_convertkit_form_id', sanitize_text_field( $_POST['convertkit_form_id'] ) );
+        }
+
+        if ( isset( $_POST['convertkit_tags'] ) ) {
+            update_option( 'assessment_quiz_convertkit_tags', sanitize_text_field( $_POST['convertkit_tags'] ) );
         }
 
         // Redirect back to the settings page
