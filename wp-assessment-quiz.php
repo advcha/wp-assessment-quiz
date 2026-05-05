@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           1.12.1
+ * Version:           1.13.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '1.12.1' );
+define( 'ASSESSMENT_QUIZ_VERSION', '1.13.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -69,7 +69,6 @@ final class Assessment_Quiz {
     private function includes() {
         require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-admin.php';
         require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-frontend.php';
-        //require_once ASSESSMENT_QUIZ_PLUGIN_DIR . 'includes/class-assessment-quiz-ajax.php';
     }
 
     /**
@@ -93,7 +92,6 @@ final class Assessment_Quiz {
     public function init_classes() {
         new Assessment_Quiz_Admin( $this->get_plugin_name(), $this->get_version() );
         new Assessment_Quiz_Frontend( $this->get_plugin_name(), $this->get_version() );
-        //new Assessment_Quiz_Ajax( $this->get_plugin_name(), $this->get_version() );
     }
 
     /**
