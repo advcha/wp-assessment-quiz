@@ -187,10 +187,10 @@ class Assessment_Quiz_Admin {
             ?>
             <!-- Tab navigation -->
             <h2 class="nav-tab-wrapper">
+                <a href="?page=assessment-quiz-settings&tab=convertkit" class="nav-tab <?php echo $active_tab == 'convertkit' ? 'nav-tab-active' : ''; ?>">ConvertKit</a>
                 <a href="?page=assessment-quiz-settings&tab=categories" class="nav-tab <?php echo $active_tab == 'categories' ? 'nav-tab-active' : ''; ?>">Categories</a>
                 <a href="?page=assessment-quiz-settings&tab=result_tiers" class="nav-tab <?php echo $active_tab == 'result_tiers' ? 'nav-tab-active' : ''; ?>">Result Tiers</a>
                 <a href="?page=assessment-quiz-settings&tab=category_results" class="nav-tab <?php echo $active_tab == 'category_results' ? 'nav-tab-active' : ''; ?>">Category Results</a>
-                <a href="?page=assessment-quiz-settings&tab=convertkit" class="nav-tab <?php echo $active_tab == 'convertkit' ? 'nav-tab-active' : ''; ?>">ConvertKit</a>
             </h2>
 
             <?php
@@ -260,14 +260,14 @@ class Assessment_Quiz_Admin {
                             <th scope="row"><label for="convertkit_form_id">Form ID</label></th>
                             <td>
                                 <input name="convertkit_form_id" type="text" id="convertkit_form_id" value="<?php echo esc_attr( get_option( 'assessment_quiz_convertkit_form_id' ) ); ?>" class="regular-text">
-                                <p class="description">Enter the ID of the ConvertKit form to subscribe users to.</p>
+                                <p class="description">Enter the ID of the ConvertKit form to subscribe users to. This is the default Form ID.</p>
                             </td>
                         </tr>
                         <tr valign="top">
                             <th scope="row">Tags</th>
                             <td>
                                 <input type="text" name="convertkit_tags" value="<?php echo esc_attr( get_option('assessment_quiz_convertkit_tags') ); ?>" class="regular-text" />
-                                <p class="description">Enter comma-separated tag IDs to add to new subscribers. e.g., 12345, 67890</p>
+                                <p class="description">Enter comma-separated tag IDs to add to new subscribers. e.g., 12345, 67890. This is the default tag ID.</p>
                             </td>
                         </tr>
                     </tbody>
