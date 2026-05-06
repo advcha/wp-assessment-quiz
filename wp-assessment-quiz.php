@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           1.14.0
+ * Version:           1.15.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '1.14.0' );
+define( 'ASSESSMENT_QUIZ_VERSION', '1.15.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -238,6 +238,8 @@ final class Assessment_Quiz {
             focus_area_title TEXT,
             focus_area_description TEXT,
             healing_plan_details TEXT,
+            convertkit_form_id VARCHAR(255) DEFAULT '' NOT NULL,
+            convertkit_tag_id VARCHAR(255) DEFAULT '' NOT NULL,
             PRIMARY KEY (id),
             KEY category_id (category_id),
             KEY result_tier_id (result_tier_id)

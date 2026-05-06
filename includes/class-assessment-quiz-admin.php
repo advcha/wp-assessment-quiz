@@ -507,6 +507,10 @@ class Assessment_Quiz_Admin {
         $focus_area_description = $result ? wp_unslash( $result['focus_area_description'] ) : '';
         $healing_plan_details = $result ? wp_unslash( $result['healing_plan_details'] ) : '';
 
+        $convertkit_form_id = $result ? $result['convertkit_form_id'] : '';
+        $convertkit_tag_id = $result ? $result['convertkit_tag_id'] : '';
+        $use_default_convertkit = empty($convertkit_form_id) && empty($convertkit_tag_id);
+
         $categories_table = $wpdb->prefix . 'assessment_categories';
         $categories = $wpdb->get_results( "SELECT id, name FROM {$categories_table} ORDER BY name ASC" );
 
@@ -515,7 +519,7 @@ class Assessment_Quiz_Admin {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html( $page_title ); ?></h1>
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <form id="category-result-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <input type="hidden" name="action" value="save_category_result_action">
                 <?php if ( 'edit' === $action && $result ) : ?>
                     <input type="hidden" name="category_result_id" value="<?php echo esc_attr( $result['id'] ); ?>">
@@ -587,6 +591,38 @@ class Assessment_Quiz_Admin {
                                 ?>
                             </td>
                         </tr>
+                        <tr>
+                            <td colspan="2" style="padding: 0;"><hr></td>
+                        </tr>
+                        <tr>
+                            <th scope="row" style="vertical-align: top; padding-top: 1.5em;">
+                                <h3>ConvertKit</h3>
+                            </th>
+                            <td>
+                                <fieldset>
+                                    <legend class="screen-reader-text"><span>ConvertKit Behavior</span></legend>
+                                    <label>
+                                        <input type="checkbox" name="use_default_convertkit" id="use_default_convertkit" <?php checked( $use_default_convertkit ); ?>>
+                                        <strong>Use default ConvertKit settings</strong>
+                                    </label>
+                                    <p class="description">Uncheck this to specify a different Form ID or Tags for this specific result.</p>
+                                </fieldset>
+                            </td>
+                        </tr>
+                        <tr class="convertkit-override-row">
+                            <th scope="row"><label for="convertkit_form_id">Form ID (Override)</label></th>
+                            <td>
+                                <input name="convertkit_form_id" type="text" id="convertkit_form_id" value="<?php echo esc_attr( $convertkit_form_id ); ?>" class="regular-text">
+                                <p class="description">Optional. Enter a ConvertKit Form ID to use for this specific result tier. Overrides the default form ID.</p>
+                            </td>
+                        </tr>
+                        <tr class="convertkit-override-row">
+                            <th scope="row"><label for="convertkit_tag_id">Tag IDs (Override)</label></th>
+                            <td>
+                                <input name="convertkit_tag_id" type="text" id="convertkit_tag_id" value="<?php echo esc_attr( $convertkit_tag_id ); ?>" class="regular-text">
+                                <p class="description">Optional. Enter comma-separated ConvertKit Tag IDs for this result. Overrides default tags.</p>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
                 <p class="submit">
@@ -595,6 +631,45 @@ class Assessment_Quiz_Admin {
                 </p>
             </form>
         </div>
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                function toggleConvertKitOverrides() {
+                    var useDefault = $('#use_default_convertkit').is(':checked');
+                    var $overrideRows = $('.convertkit-override-row');
+                    var $overrideInputs = $overrideRows.find('input[type="text"]');
+
+                    if (useDefault) {
+                        $overrideRows.hide();
+                        $overrideInputs.prop('disabled', true);
+                    } else {
+                        $overrideRows.show();
+                        $overrideInputs.prop('disabled', false);
+                    }
+                }
+
+                // Initial state on page load
+                toggleConvertKitOverrides();
+
+                // Toggle on checkbox change
+                $('#use_default_convertkit').on('change', function() {
+                    toggleConvertKitOverrides();
+                });
+
+                // Form submission validation
+                $('#category-result-form').on('submit', function(e) {
+                    var useDefault = $('#use_default_convertkit').is(':checked');
+                    if (!useDefault) {
+                        var formId = $('#convertkit_form_id').val().trim();
+                        var tagId = $('#convertkit_tag_id').val().trim();
+
+                        if (formId === '' || tagId === '') {
+                            alert('When overriding default ConvertKit settings, both "Form ID (Override)" and "Tag IDs (Override)" must be filled out.');
+                            e.preventDefault(); // Prevent form submission
+                        }
+                    }
+                });
+            });
+        </script>
         <?php
     }
 
@@ -725,22 +800,58 @@ class Assessment_Quiz_Admin {
         if ( ! isset( $_POST['save_category_result_nonce'] ) || ! wp_verify_nonce( $_POST['save_category_result_nonce'], 'save_category_result_action' ) ) {
             wp_die( 'Security check failed' );
         }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have sufficient permissions to access this page.' );
+        }
+
+        $category_id = isset( $_POST['category_id'] ) ? intval( $_POST['category_id'] ) : 0;
+        $result_tier_id = isset( $_POST['result_tier_id'] ) ? intval( $_POST['result_tier_id'] ) : 0;
+        $focus_area_title = isset( $_POST['focus_area_title'] ) ? sanitize_text_field( $_POST['focus_area_title'] ) : '';
+        $focus_area_description = isset( $_POST['focus_area_description'] ) ? wp_kses_post( $_POST['focus_area_description'] ) : '';
+        $healing_plan_details = isset( $_POST['healing_plan_details'] ) ? wp_kses_post( $_POST['healing_plan_details'] ) : '';
+
+        $use_default_convertkit = isset( $_POST['use_default_convertkit'] );
+        $convertkit_form_id = '';
+        $convertkit_tag_id = '';
+
+        if ( ! $use_default_convertkit ) {
+            $convertkit_form_id = isset( $_POST['convertkit_form_id'] ) ? sanitize_text_field( $_POST['convertkit_form_id'] ) : '';
+            $convertkit_tag_id = isset( $_POST['convertkit_tag_id'] ) ? sanitize_text_field( $_POST['convertkit_tag_id'] ) : '';
+
+            if ( empty( $convertkit_form_id ) || empty( $convertkit_tag_id ) ) {
+                wp_die( 'Error: When not using the default ConvertKit settings, both the "Form ID (Override)" and "Tag IDs (Override)" fields must be filled out. Please go back and correct the entry.' );
+            }
+        }
+
+        if ( ! $category_id || ! $result_tier_id ) {
+            wp_die( 'Missing category or result tier.' );
+        }
+
         global $wpdb;
         $table_name = $wpdb->prefix . 'assessment_category_results';
         $id = isset( $_POST['category_result_id'] ) ? intval( $_POST['category_result_id'] ) : 0;
         
-        $data = [
-            'category_id'            => intval( $_POST['category_id'] ),
-            'result_tier_id'         => intval( $_POST['result_tier_id'] ),
-            'focus_area_title'       => sanitize_text_field( $_POST['focus_area_title'] ),
-            'focus_area_description' => sanitize_textarea_field( $_POST['focus_area_description'] ),
-            'healing_plan_details'   => wp_kses_post( $_POST['healing_plan_details'] ),
-        ];
+        $data = array(
+            'category_id' => $category_id,
+            'result_tier_id' => $result_tier_id,
+            'focus_area_title' => $focus_area_title,
+            'focus_area_description' => $focus_area_description,
+            'healing_plan_details' => $healing_plan_details,
+            'convertkit_form_id' => $convertkit_form_id,
+            'convertkit_tag_id' => $convertkit_tag_id,
+        );
+        $format = array( '%d', '%d', '%s', '%s', '%s', '%s', '%s' );
 
         if ( $id ) {
-            $wpdb->update( $table_name, $data, [ 'id' => $id ] );
+            $wpdb->update( $table_name, $data, array( 'id' => $id ), $format, array( '%d' ) );
         } else {
-            $wpdb->insert( $table_name, $data );
+            // Check for duplicates before inserting
+            $existing = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM $table_name WHERE category_id = %d AND result_tier_id = %d", $category_id, $result_tier_id ) );
+            if ( $existing ) {
+                wp_die( 'A result for this category and tier already exists. Please edit the existing entry.' );
+            }
+            $wpdb->insert( $table_name, $data, $format );
         }
 
         wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results&status=saved' ) );
