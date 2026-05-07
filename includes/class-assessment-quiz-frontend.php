@@ -307,27 +307,35 @@ class Assessment_Quiz_Frontend {
                     $tier->id
                 ) );
 
+                $use_default_convertkit = !($category_result && !empty($category_result->convertkit_form_id));
+
                 $result_data['categories'][] = array(
-                    'category_name' => $score_data->category_name,
-                    'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
-                    'score' => $score_data->score,
-                    'total_possible_points' => $total_possible_points,
-                    'tier_name' => $tier->tier_name,
-                    'focus_area_title' => $category_result ? stripslashes($category_result->focus_area_title) : '',
-                    'focus_area_description' => $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : 'Result details have not been configured for this tier.',
-                    'healing_plan_details' => $category_result ? wp_specialchars_decode(stripslashes($category_result->healing_plan_details), ENT_QUOTES) : '',
+                    'category_name'             => $score_data->category_name,
+                    'category_description'      => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
+                    'score'                     => $score_data->score,
+                    'total_possible_points'     => $total_possible_points,
+                    'tier_name'                 => $tier->tier_name,
+                    'focus_area_title'          => $category_result ? stripslashes($category_result->focus_area_title) : '',
+                    'focus_area_description'    => $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : 'Result details have not been configured for this tier.',
+                    'healing_plan_details'      => $category_result ? wp_specialchars_decode(stripslashes($category_result->healing_plan_details), ENT_QUOTES) : '',
+                    'use_default_convertkit'    => $use_default_convertkit,
+                    'convertkit_form_id'        => $category_result ? $category_result->convertkit_form_id : '',
+                    'convertkit_tag_id'         => $category_result ? $category_result->convertkit_tag_id : '',
                 );
             } else {
                 // Fallback if no tiers are configured at all for this quiz
                 $result_data['categories'][] = array(
-                    'category_name' => $score_data->category_name,
-                    'category_description' => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
-                    'score' => $score_data->score,
-                    'total_possible_points' => $total_possible_points,
-                    'tier_name' => 'N/A',
-                    'focus_area_title' => '',
-                    'focus_area_description' => 'Result tiers have not been configured for this quiz.',
-                    'healing_plan_details' => '',
+                    'category_name'             => $score_data->category_name,
+                    'category_description'      => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
+                    'score'                     => $score_data->score,
+                    'total_possible_points'     => $total_possible_points,
+                    'tier_name'                 => 'N/A',
+                    'focus_area_title'          => '',
+                    'focus_area_description'    => 'Result tiers have not been configured for this quiz.',
+                    'healing_plan_details'      => '',
+                    'use_default_convertkit'    => true,
+                    'convertkit_form_id'        => '',
+                    'convertkit_tag_id'         => '',
                 );
             }
         }
@@ -509,8 +517,8 @@ class Assessment_Quiz_Frontend {
             return;
         }
 
-        // Subscribe to ConvertKit
-        $this->subscribe_to_convertkit($email);
+        // Handle ConvertKit Subscription based on results
+        $this->handle_convertkit_subscription($email, $submission_id);
     
         // Generate the result HTML again
         $result_html = $this->display_result_shortcode(array(
@@ -536,10 +544,10 @@ class Assessment_Quiz_Frontend {
         }
     }
 
-    private function subscribe_to_convertkit($email) {
+    private function subscribe_to_convertkit($email, $form_id, $tag_ids = array()) {
         $api_key = get_option('assessment_quiz_convertkit_api_key');
-        $form_id = get_option('assessment_quiz_convertkit_form_id');
-        $tags_string = get_option('assessment_quiz_convertkit_tags');
+        //$form_id = get_option('assessment_quiz_convertkit_form_id');
+        //$tags_string = get_option('assessment_quiz_convertkit_tags');
 
         if (empty($api_key) || empty($form_id)) {
             error_log('ConvertKit Debug: API Key or Form ID is missing in settings.');
@@ -553,13 +561,8 @@ class Assessment_Quiz_Frontend {
             'email'   => $email,
         );
 
-        if ( ! empty( $tags_string ) ) {
-            $tag_ids = array_map( 'intval', array_map( 'trim', explode( ',', $tags_string ) ) );
-            $tag_ids = array_filter( $tag_ids );
-
-            if ( ! empty( $tag_ids ) ) {
-                $body['tags'] = $tag_ids;
-            }
+        if (!empty($tag_ids)) {
+            $body['tags'] = $tag_ids;
         }
         
         $args = array(
@@ -585,6 +588,45 @@ class Assessment_Quiz_Frontend {
             // Log everything for debugging purposes
             error_log('ConvertKit API Response Code: ' . $response_code);
             error_log('ConvertKit API Response Body: ' . $response_body);
+        }
+    }
+
+    private function handle_convertkit_subscription($email, $submission_id) {
+        $result_data = $this->get_result_data($submission_id);
+        if (!$result_data) {
+            return;
+        }
+
+        $high_tier_categories = array_filter($result_data['categories'], function($category) {
+            return $category['tier_name'] === 'High' && !$category['use_default_convertkit'];
+        });
+
+        if (!empty($high_tier_categories)) {
+            $forms = [];
+            foreach ($high_tier_categories as $category) {
+                $form_id = $category['convertkit_form_id'];
+                if (!isset($forms[$form_id])) {
+                    $forms[$form_id] = [];
+                }
+                if (!empty($category['convertkit_tag_id'])) {
+                    $forms[$form_id][] = $category['convertkit_tag_id'];
+                }
+            }
+
+            foreach ($forms as $form_id => $tag_ids) {
+                $unique_tag_ids = array_unique(array_filter($tag_ids));
+                $this->subscribe_to_convertkit($email, $form_id, $unique_tag_ids);
+            }
+        } else {
+            // Use default settings
+            $default_form_id = get_option('assessment_quiz_convertkit_form_id');
+            $default_tags_string = get_option('assessment_quiz_convertkit_tags');
+            $default_tag_ids = [];
+            if (!empty($default_tags_string)) {
+                $default_tag_ids = array_map('intval', array_map('trim', explode(',', $default_tags_string)));
+                $default_tag_ids = array_filter($default_tag_ids);
+            }
+            $this->subscribe_to_convertkit($email, $default_form_id, $default_tag_ids);
         }
     }
 
