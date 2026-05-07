@@ -139,6 +139,10 @@
                         tinymce.get('section-content-end').setContent('');
                     }
                 }
+
+                // Also clear the underlying textareas
+                $('#section-content-begin').val('');
+                $('#section-content-end').val('');
             }
 
             $modal.hide();
@@ -160,6 +164,16 @@
         $('#add-section-btn').on('click', function () {
             $('#section-id').val('');
             $('#section-form')[0].reset();
+
+            // Clear editor content and underlying textareas
+            if (typeof tinymce !== 'undefined') {
+                if (tinymce.get('section-content-begin')) {
+                    tinymce.get('section-content-begin').setContent('');
+                }
+                if (tinymce.get('section-content-end')) {
+                    tinymce.get('section-content-end').setContent('');
+                }
+            }
             $('#section-content-begin').val('');
             $('#section-content-end').val('');
 
