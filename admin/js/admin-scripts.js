@@ -430,7 +430,7 @@
 
                 // Determine if the section itself matches or has visible questions
                 const sectionTitleMatch = searchTerm && section.title.toLowerCase().includes(searchTermLc);
-                if (sectionTitleMatch || visibleQuestions.length > 0) {
+                if (!searchTerm || sectionTitleMatch || visibleQuestions.length > 0) {
                     sectionHasVisibleContent = true;
                 }
 
