@@ -455,6 +455,7 @@ jQuery(document).ready(function($) {
         if (currentStepIndex < steps.length - 1) {
             currentStepIndex++;
             renderStep(currentStepIndex);
+            quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     });
 
@@ -462,6 +463,7 @@ jQuery(document).ready(function($) {
         if (currentStepIndex > 0) {
             currentStepIndex--;
             renderStep(currentStepIndex);
+            quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     });
 
