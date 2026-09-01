@@ -26,6 +26,8 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_styles_and_scripts' ) );
         add_action( 'admin_post_save_quiz_action', array( $this, 'save_quiz_data' ) );
         add_action( 'admin_action_delete_quiz', array( $this, 'delete_quiz_action' ) );
+        add_action( 'admin_action_duplicate_quiz', array( $this, 'duplicate_quiz_action' ) );
+        add_action( 'wp_ajax_duplicate_quiz_ajax', array( $this, 'duplicate_quiz_ajax_handler' ) );
         add_action( 'admin_post_save_category_action', array( $this, 'save_category_data' ) );
         add_action( 'admin_action_delete_category', array( $this, 'delete_category_action' ) );
         add_action( 'admin_post_save_result_tier_action', array( $this, 'save_result_tier_data' ) );
@@ -138,6 +140,7 @@ class Assessment_Quiz_Admin {
         $list_table->prepare_items();
         ?>
         <div class="wrap">
+            <div class="aq-loading-overlay"><div class="spinner"></div></div>
             <h1 class="wp-heading-inline">All Quizzes</h1>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=add-new-quiz' ) ); ?>" class="page-title-action">Add New Quiz</a>
 
@@ -147,6 +150,8 @@ class Assessment_Quiz_Admin {
                         <p><?php esc_html_e( 'Quiz saved successfully.', 'assessment-quiz' ); ?></p>
                     <?php elseif ( $_GET['status'] === 'deleted' ) : ?>
                         <p><?php esc_html_e( 'Quiz(zes) deleted successfully.', 'assessment-quiz' ); ?></p>
+                    <?php elseif ( $_GET['status'] === 'duplicated' ) : ?>
+                        <p><?php esc_html_e( 'Quiz duplicated successfully.', 'assessment-quiz' ); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -1077,5 +1082,111 @@ class Assessment_Quiz_Admin {
 
         wp_redirect( admin_url( 'admin.php?page=assessment-quiz&status=deleted' ) );
         exit;
+    }
+
+    public function duplicate_quiz_ajax_handler() {
+        if ( ! isset( $_POST['quiz_id'] ) || ! isset( $_POST['nonce'] ) ) {
+            wp_send_json_error( 'Missing parameters.' );
+        }
+    
+        $quiz_id = intval( $_POST['quiz_id'] );
+        $nonce = sanitize_text_field( $_POST['nonce'] );
+    
+        if ( ! wp_verify_nonce( $nonce, 'duplicate_quiz_' . $quiz_id ) ) {
+            wp_send_json_error( 'Security check failed.' );
+        }
+    
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( 'You do not have permission to duplicate quizzes.' );
+        }
+    
+        $new_quiz_id = $this->duplicate_quiz( $quiz_id );
+    
+        if ($new_quiz_id) {
+            wp_send_json_success( 'Quiz duplicated successfully.' );
+        } else {
+            wp_send_json_error( 'Failed to duplicate quiz.' );
+        }
+    }
+
+    public function duplicate_quiz_action() {
+        if ( empty( $_GET['quiz_id'] ) || empty( $_GET['_wpnonce'] ) ) {
+            wp_die( 'Invalid request.' );
+        }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have permission to duplicate this item.' );
+        }
+
+        $quiz_id = absint( $_GET['quiz_id'] );
+        $nonce = sanitize_text_field( $_GET['_wpnonce'] );
+
+        if ( ! wp_verify_nonce( $nonce, 'duplicate_quiz_' . $quiz_id ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        $this->duplicate_quiz( $quiz_id );
+
+        wp_redirect( admin_url( 'admin.php?page=assessment-quiz&status=duplicated' ) );
+        exit;
+    }
+
+    private function duplicate_quiz( $quiz_id ) {
+        global $wpdb;
+        $quizzes_table = $wpdb->prefix . 'assessment_quizzes';
+        $sections_table = $wpdb->prefix . 'assessment_sections';
+        $questions_table = $wpdb->prefix . 'assessment_questions';
+        $answers_table = $wpdb->prefix . 'assessment_answers';
+
+        // Get the original quiz
+        $original_quiz = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$quizzes_table} WHERE id = %d", $quiz_id ), ARRAY_A );
+        if ( ! $original_quiz ) {
+            return;
+        }
+
+        // Create the new quiz
+        $new_quiz_data = $original_quiz;
+        unset( $new_quiz_data['id'] );
+        $new_quiz_data['title'] = $original_quiz['title'] . ' (Copy)';
+        $new_quiz_data['created_at'] = current_time( 'mysql' );
+        $wpdb->insert( $quizzes_table, $new_quiz_data );
+        $new_quiz_id = $wpdb->insert_id;
+
+        // Get the original sections
+        $original_sections = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$sections_table} WHERE quiz_id = %d", $quiz_id ), ARRAY_A );
+
+        foreach ( $original_sections as $original_section ) {
+            // Create the new section
+            $new_section_data = $original_section;
+            unset( $new_section_data['id'] );
+            $new_section_data['quiz_id'] = $new_quiz_id;
+            $wpdb->insert( $sections_table, $new_section_data );
+            $new_section_id = $wpdb->insert_id;
+
+            // Get the original questions
+            $original_questions = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$questions_table} WHERE section_id = %d", $original_section['id'] ), ARRAY_A );
+
+            foreach ( $original_questions as $original_question ) {
+                // Create the new question
+                $new_question_data = $original_question;
+                unset( $new_question_data['id'] );
+                $new_question_data['section_id'] = $new_section_id;
+                $wpdb->insert( $questions_table, $new_question_data );
+                $new_question_id = $wpdb->insert_id;
+
+                // Get the original answers
+                $original_answers = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$answers_table} WHERE question_id = %d", $original_question['id'] ), ARRAY_A );
+
+                foreach ( $original_answers as $original_answer ) {
+                    // Create the new answer
+                    $new_answer_data = $original_answer;
+                    unset( $new_answer_data['id'] );
+                    $new_answer_data['question_id'] = $new_question_id;
+                    $wpdb->insert( $answers_table, $new_answer_data );
+                }
+            }
+        }
+
+        return $new_quiz_id;
     }
 }

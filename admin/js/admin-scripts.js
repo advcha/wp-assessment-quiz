@@ -609,6 +609,45 @@
             }
         });
 
+        // Handle quiz duplication with AJAX
+        $(document).on('click', '.duplicate-quiz-link', function(e) {
+            e.preventDefault();
+
+            if (!confirm('Are you sure you want to duplicate this quiz?')) {
+                return;
+            }
+
+            const $link = $(this);
+            const quizId = $link.data('quiz-id');
+            const nonce = $link.data('nonce');
+            const $overlay = $('.aq-loading-overlay');
+            // Show the loading overlay
+            $overlay.css('display', 'flex');
+
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'duplicate_quiz_ajax',
+                    quiz_id: quizId,
+                    nonce: nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('status', 'duplicated');
+                        window.location.href = url.href;
+                    } else {
+                        alert('Error: ' + response.data);
+                        $overlay.hide();
+                    }
+                },
+                error: function() {
+                    alert('An unexpected error occurred.');
+                    $overlay.hide();
+                }
+            });
+        });
     });
 
 })(jQuery);

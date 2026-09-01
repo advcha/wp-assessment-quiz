@@ -58,9 +58,17 @@ class Assessment_Quiz_List_Table extends WP_List_Table {
             '_wpnonce' => $delete_nonce
         ], admin_url( 'admin.php' ) );
 
+        $duplicate_nonce = wp_create_nonce( 'duplicate_quiz_' . $item['id'] );
+        $duplicate_url = add_query_arg( [
+            'action'   => 'duplicate_quiz',
+            'quiz_id'  => $item['id'],
+            '_wpnonce' => $duplicate_nonce
+        ], admin_url( 'admin.php' ) );
+
         $actions = [
             'edit'  => sprintf( '<a href="%s">Edit</a>', $edit_url ),
-            'trash' => sprintf( '<a href="%s" class="submitdelete" onclick="return confirm(\'Are you sure you want to delete this quiz? This will also delete all of its sections, questions, and answers.\');">Delete</a>', $delete_url )
+            'trash' => sprintf( '<a href="%s" class="submitdelete" onclick="return confirm(\'Are you sure you want to delete this quiz? This will also delete all of its sections, questions, and answers.\');">Delete</a>', $delete_url ),
+            'duplicate' => sprintf( '<a href="#" class="duplicate-quiz-link" data-quiz-id="%d" data-nonce="%s">Duplicate</a>', $item['id'], $duplicate_nonce )
         ];
 
         return sprintf( '<strong><a class="row-title" href="%s">%s</a></strong>%s', $edit_url, $item['title'], $this->row_actions( $actions ) );
