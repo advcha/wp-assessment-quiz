@@ -126,11 +126,11 @@ class Assessment_Quiz_Frontend {
         ob_start();
         ?>
         <div class="assessment-result">
-            <h2>Your Results</h2>
+            <h2>Jouw resultaten</h2>
 
             <!-- Panel 1: Categories Summary -->
             <div class="result-panel" id="category-summary-panel">
-                <h3>Categories Summary</h3>
+                <h3>Overzicht per categorie</h3>
                 <ol class="category-summary-list">
                     <?php foreach ( $result_data['categories'] as $category_result ) : ?>
                         <li>
@@ -156,7 +156,7 @@ class Assessment_Quiz_Frontend {
             if (!empty($focus_areas)):
             ?>
             <div class="result-panel" id="focus-areas-panel">
-                <h3>Your Focus Areas</h3>
+                <h3>Je focus gebieden</h3>
                 <ol class="focus-areas-list">
                     <?php foreach ( $focus_areas as $category_result ) : ?>
                         <li>
@@ -180,7 +180,7 @@ class Assessment_Quiz_Frontend {
             if ($for_email && !empty($healing_plans)):
             ?>
             <div class="result-panel" id="healing-plans-panel">
-                <h3>Your Healing Plan</h3>
+                <h3>Jouw plan</h3>
                 <div class="healing-plans-container">
                     <?php foreach ( $healing_plans as $category_result ) : ?>
                         <div class="healing-plan-item">
@@ -194,11 +194,11 @@ class Assessment_Quiz_Frontend {
             <?php if ( ! $for_email ) : ?>
                 <!-- Panel 4: Actions -->
                 <div class="result-panel" id="actions-panel" data-submission-id="<?php echo esc_attr( $submission_id ); ?>">
-                    <h3>Next Steps</h3>
+                    <h3>Volgende stappen</h3>
                     <div class="actions-container">
                         <div class="action-item email-results">
-                            <h4>Email Your Results</h4>
-                            <p>Enter your email address to receive a copy of your results.</p>
+                            <h4>Resultaten en plan per email</h4>
+                            <p>Vul je email in en ontvang een plan op maat</p>
                             <div class="email-form">
                                 <input type="email" id="result-email-input" placeholder="your.email@example.com">
                                 <button id="send-result-email-btn">Send Email</button>
@@ -206,9 +206,9 @@ class Assessment_Quiz_Frontend {
                             </div>
                         </div>
                         <div class="action-item webinar-signup">
-                            <h4>Join Our Webinar</h4>
-                            <p>Learn more about how to apply these insights by joining our free webinar.</p>
-                            <a href="https://example.com/webinar-registration" class="webinar-btn" target="_blank">Register Now</a>
+                            <h4>Volg onze Webinar</h4>
+                            <p>Leer hoe je dit kunt inplementeren in ons gratis Masterclass</p>
+                            <a href="https://mentaalrust.webinargeek.com/mentaalrust-2?cst=quiz" class="webinar-btn" target="_blank">Meld je aan</a>
                         </div>
                     </div>
                 </div>
