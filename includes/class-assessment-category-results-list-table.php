@@ -17,7 +17,7 @@ class Assessment_Category_Results_List_Table extends WP_List_Table {
         return [
             'cb'               => '<input type="checkbox" />',
             'category_name'    => 'Category',
-            'tier_name'        => 'Result Tier',
+            'tier_name'        => 'Result Tier - Threshold Type',
             'focus_area_title' => 'Focus Area Title'
         ];
     }
@@ -38,6 +38,14 @@ class Assessment_Category_Results_List_Table extends WP_List_Table {
             'delete' => sprintf( '<a href="?page=%s&tab=category_results&action=delete_category_result&category_result_id=%s&_wpnonce=%s" onclick="return confirm(\'Are you sure you want to delete this item?\');">Delete</a>', $page, $item['id'], $nonce ),
         ];
         return sprintf( '%1$s %2$s', esc_html($item['focus_area_title']), $this->row_actions( $actions ) );
+    }
+
+    public function column_tier_name( $item ) {
+        $tier_display = esc_html( $item['tier_name'] );
+        if ( ! empty( $item['threshold_type'] ) ) {
+            $tier_display .= ' - ' . esc_html( $item['threshold_type'] );
+        }
+        return $tier_display;
     }
 
     public function get_bulk_actions() {
@@ -84,7 +92,7 @@ class Assessment_Category_Results_List_Table extends WP_List_Table {
 
         $search_term = ( ! empty( $_GET['s'] ) ) ? '%' . $wpdb->esc_like( $_GET['s'] ) . '%' : '';
 
-        $query = "SELECT cr.id, c.name as category_name, rt.tier_name, cr.focus_area_title
+        $query = "SELECT cr.id, c.name as category_name, rt.tier_name, rt.threshold_type, cr.focus_area_title
                   FROM {$table_name} cr
                   LEFT JOIN {$categories_table} c ON cr.category_id = c.id
                   LEFT JOIN {$tiers_table} rt ON cr.result_tier_id = rt.id";
