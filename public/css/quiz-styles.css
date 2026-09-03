@@ -441,6 +441,12 @@ body.page-template-template-quiz .footer-width-fixer a:hover {
     font-size: 0.8em;
 }
 
+.focus-area-description {
+    color: #7f8c8d;
+    margin-bottom: 10px;
+    font-size: 0.8em;
+}
+
 .category-score-tier {
     font-weight: bold;
 }

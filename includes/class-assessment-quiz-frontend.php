@@ -139,6 +139,9 @@ class Assessment_Quiz_Frontend {
                                 <?php if (!empty($category_result['category_description'])): ?>
                                     <p class="category-description"><?php echo wp_kses_post( $category_result['category_description'] ); ?></p>
                                 <?php endif; ?>
+                                <?php if (!empty($category_result['focus_area_description'])): ?>
+                                    <div class="focus-area-description"><?php echo wp_kses_post( $category_result['focus_area_description'] ); ?></div>
+                                <?php endif; ?>
                                 <span class="category-score-tier">
                                     Result: <span class="tier-<?php echo sanitize_html_class( strtolower( $category_result['tier_name'] ) ); ?>"><?php echo esc_html( $category_result['tier_name'] ); ?></span> (Score: <?php echo esc_html( $category_result['score'] ); ?> of <?php echo esc_html( $category_result['total_possible_points'] ); ?>)
                                 </span>
@@ -286,18 +289,29 @@ class Assessment_Quiz_Frontend {
             $percentage = ($total_possible_points > 0) ? ( $score_data->score / $total_possible_points ) * 100 : 0;
             $rounded_percentage = round($percentage);
 
-            // Look for a matching tier. Prioritize 'percentage' type, but fall back to 'value' type.
-            // This makes the system more flexible, as you pointed out.
-            $tier = $wpdb->get_row( $wpdb->prepare(
-                "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'percentage' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
-                $rounded_percentage
-            ) );
+            // Get result_tier_ids that are relevant for this specific category.
+            $category_tier_ids = $wpdb->get_col($wpdb->prepare(
+                "SELECT result_tier_id FROM {$category_results_table} WHERE category_id = %d",
+                $category_id
+            ));
 
-            if ( ! $tier ) {
+            $tier = null;
+            // Only search for a tier if there are any configured for this category.
+            if (!empty($category_tier_ids)) {
+                $tier_placeholders = implode(',', array_fill(0, count($category_tier_ids), '%d'));
+
+                // Look for a matching tier from the category's associated tiers.
                 $tier = $wpdb->get_row( $wpdb->prepare(
-                    "SELECT * FROM {$result_tiers_table} WHERE threshold_type = 'value' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
-                    $score_data->score
+                    "SELECT * FROM {$result_tiers_table} WHERE id IN ($tier_placeholders) AND threshold_type = 'percentage' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
+                    array_merge($category_tier_ids, [$rounded_percentage])
                 ) );
+
+                if ( ! $tier ) {
+                    $tier = $wpdb->get_row( $wpdb->prepare(
+                        "SELECT * FROM {$result_tiers_table} WHERE id IN ($tier_placeholders) AND threshold_type = 'value' AND threshold_value >= %d ORDER BY threshold_value ASC LIMIT 1",
+                        array_merge($category_tier_ids, [$score_data->score])
+                    ) );
+                }
             }
 
             if ( $tier ) {
@@ -309,6 +323,9 @@ class Assessment_Quiz_Frontend {
 
                 $use_default_convertkit = !($category_result && !empty($category_result->convertkit_form_id));
 
+                $focus_area_desc = $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : "Result details for tier '{$tier->tier_name}' have not been configured.";
+
+
                 $result_data['categories'][] = array(
                     'category_name'             => $score_data->category_name,
                     'category_description'      => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
@@ -316,7 +333,7 @@ class Assessment_Quiz_Frontend {
                     'total_possible_points'     => $total_possible_points,
                     'tier_name'                 => $tier->tier_name,
                     'focus_area_title'          => $category_result ? stripslashes($category_result->focus_area_title) : '',
-                    'focus_area_description'    => $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : 'Result details have not been configured for this tier.',
+                    'focus_area_description'    => $focus_area_desc,
                     'healing_plan_details'      => $category_result ? wp_specialchars_decode(stripslashes($category_result->healing_plan_details), ENT_QUOTES) : '',
                     'use_default_convertkit'    => $use_default_convertkit,
                     'convertkit_form_id'        => $category_result ? $category_result->convertkit_form_id : '',
@@ -329,9 +346,9 @@ class Assessment_Quiz_Frontend {
                     'category_description'      => !empty($score_data->category_description) ? wp_specialchars_decode(stripslashes($score_data->category_description), ENT_QUOTES) : '',
                     'score'                     => $score_data->score,
                     'total_possible_points'     => $total_possible_points,
-                    'tier_name'                 => 'N/A',
+                    'tier_name'                 => '-',
                     'focus_area_title'          => '',
-                    'focus_area_description'    => 'Result tiers have not been configured for this quiz.',
+                    'focus_area_description'    => "Result details for category '{$score_data->category_name}' have not been configured.",
                     'healing_plan_details'      => '',
                     'use_default_convertkit'    => true,
                     'convertkit_form_id'        => '',
