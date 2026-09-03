@@ -34,9 +34,9 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_action_delete_result_tier', array( $this, 'delete_result_tier_action' ) );
         add_action( 'admin_post_save_category_result_action', array( $this, 'save_category_result_data' ) );
         add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
-        add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
         add_action( 'admin_post_save_convertkit_settings', array( $this, 'save_convertkit_settings' ) );
         add_action( 'wp_ajax_get_tiers_for_categories', array( $this, 'get_tiers_for_categories_handler' ) );
+        add_action( 'wp_ajax_validate_tier_threshold', array( $this, 'validate_tier_threshold_handler' ) );
     }
 
     private function save_tier_colors( $quiz_id, $colors ) {
@@ -773,6 +773,49 @@ class Assessment_Quiz_Admin {
 
                 // Form submission validation
                 $('#category-result-form').on('submit', function(e) {
+                    e.preventDefault(); // Stop the form from submitting immediately
+
+                    var form = this;
+                    var categoryId = $('#category_id').val();
+                    var resultTierId = $('#result_tier_id').val();
+                    var categoryResultId = $('input[name="category_result_id"]').val() || 0;
+                    var nonce = $('#save_category_result_nonce').val();
+
+                    // If required fields are empty, let the browser handle it.
+                    if (!categoryId || !resultTierId) {
+                        form.submit();
+                        return;
+                    }
+
+                    // Show a loading indicator
+                    $(form).find('#submit').after('<span class="spinner is-active" style="float: none; vertical-align: middle;"></span>');
+
+                    $.ajax({
+                        url: ajaxurl, // WordPress AJAX URL
+                        type: 'POST',
+                        data: {
+                            action: 'validate_tier_threshold',
+                            category_id: categoryId,
+                            result_tier_id: resultTierId,
+                            category_result_id: categoryResultId,
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // The form is valid, submit it.
+                                // We must use the native submit() to avoid an infinite loop and because form.submit is shadowed by the submit button's name.
+                                HTMLFormElement.prototype.submit.call(form);
+                            } else {
+                                alert(response.data.message); // Validation failed, show error alert
+                                $(form).find('.spinner').remove(); // Remove loading indicator
+                            }
+                        },
+                        error: function() {
+                            alert('An error occurred during validation. Please try again.');
+                            $(form).find('.spinner').remove(); // Remove loading indicator
+                        }
+                    });
+
                     var useDefault = $('#use_default_convertkit').is(':checked');
                     if (!useDefault) {
                         var formId = $('#convertkit_form_id').val().trim();
@@ -991,6 +1034,71 @@ class Assessment_Quiz_Admin {
         $wpdb->delete( $table_name, [ 'id' => $id ] );
         wp_redirect( admin_url( 'admin.php?page=assessment-quiz-settings&tab=category_results&status=deleted' ) );
         exit;
+    }
+
+    public function validate_tier_threshold_handler() {
+        if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'save_category_result_action' ) ) {
+            wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
+        }
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'You do not have sufficient permissions.' ), 403 );
+        }
+
+        $category_id = isset( $_POST['category_id'] ) ? intval( $_POST['category_id'] ) : 0;
+        $result_tier_id = isset( $_POST['result_tier_id'] ) ? intval( $_POST['result_tier_id'] ) : 0;
+        $id = isset( $_POST['category_result_id'] ) ? intval( $_POST['category_result_id'] ) : 0;
+
+        if ( ! $category_id || ! $result_tier_id ) {
+            wp_send_json_success(); // Let server-side validation handle missing fields
+            return;
+        }
+
+        global $wpdb;
+        $tiers_table_name = $wpdb->prefix . 'assessment_result_tiers';
+        $category_results_table_name = $wpdb->prefix . 'assessment_category_results';
+
+        // Get the threshold type of the tier being added/edited
+        $new_tier_threshold_type = $wpdb->get_var( $wpdb->prepare( "SELECT threshold_type FROM $tiers_table_name WHERE id = %d", $result_tier_id ) );
+        if ( ! $new_tier_threshold_type ) {
+            wp_send_json_error( array( 'message' => 'The selected result tier is invalid.' ) );
+            return;
+        }
+
+        // Get all existing tiers for the given category, excluding the one being edited
+        $query = $wpdb->prepare(
+            "SELECT art.threshold_type, art.tier_name
+             FROM {$category_results_table_name} acr
+             JOIN {$tiers_table_name} art ON acr.result_tier_id = art.id
+             WHERE acr.category_id = %d",
+            $category_id
+        );
+
+        if ( $id ) {
+            $query .= $wpdb->prepare( " AND acr.id != %d", $id );
+        }
+
+        $existing_tiers = $wpdb->get_results( $query );
+
+        if ( ! empty( $existing_tiers ) ) {
+            foreach ( $existing_tiers as $existing_tier ) {
+                if ( $new_tier_threshold_type !== $existing_tier->threshold_type ) {
+                    $new_tier_name = $wpdb->get_var( $wpdb->prepare( "SELECT tier_name FROM $tiers_table_name WHERE id = %d", $result_tier_id ) );
+                    
+                    $error_message = sprintf(
+                        "Cannot mix the threshold type '%s' of tier '%s' with '%s' of tier '%s' on the same category. Edit the Result tier data to make sure the threshold type is same.",
+                        esc_html( $new_tier_threshold_type ),
+                        esc_html( $new_tier_name ),
+                        esc_html( $existing_tier->threshold_type ),
+                        esc_html( $existing_tier->tier_name )
+                    );
+                    wp_send_json_error( array( 'message' => $error_message ) );
+                    return;
+                }
+            }
+        }
+
+        wp_send_json_success();
     }
 
     public function display_submissions_page() {
