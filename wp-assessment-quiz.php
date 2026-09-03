@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           1.16.1
+ * Version:           2.1.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '1.16.1' );
+define( 'ASSESSMENT_QUIZ_VERSION', '2.1.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -226,6 +226,18 @@ final class Assessment_Quiz {
             threshold_type ENUM('percentage', 'value') NOT NULL,
             threshold_value INT NOT NULL,
             PRIMARY KEY (id)
+        ) $charset_collate;";
+        dbDelta( $sql );
+
+        // Table for Quiz Tier Colors
+        $table_name = $table_prefix . 'assessment_quiz_tier_colors';
+        $sql = "CREATE TABLE $table_name (
+            id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+            quiz_id INT(10) UNSIGNED NOT NULL,
+            tier_id TINYINT(5) UNSIGNED NOT NULL,
+            color VARCHAR(7) NOT NULL DEFAULT '#000000',
+            PRIMARY KEY (id),
+            UNIQUE KEY quiz_tier (quiz_id, tier_id)
         ) $charset_collate;";
         dbDelta( $sql );
 

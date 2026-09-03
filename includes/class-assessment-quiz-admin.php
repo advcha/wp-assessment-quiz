@@ -36,6 +36,29 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
         add_action( 'admin_action_delete_category_result', array( $this, 'delete_category_result_action' ) );
         add_action( 'admin_post_save_convertkit_settings', array( $this, 'save_convertkit_settings' ) );
+        add_action( 'wp_ajax_get_tiers_for_categories', array( $this, 'get_tiers_for_categories_handler' ) );
+    }
+
+    private function save_tier_colors( $quiz_id, $colors ) {
+        global $wpdb;
+        $colors_table = $wpdb->prefix . 'assessment_quiz_tier_colors';
+
+        foreach ( $colors as $tier_id => $color ) {
+            $tier_id = intval( $tier_id );
+            $color = sanitize_hex_color( $color );
+
+            if ( $tier_id > 0 && $color ) {
+                $wpdb->replace(
+                    $colors_table,
+                    [
+                        'quiz_id' => $quiz_id,
+                        'tier_id' => $tier_id,
+                        'color'   => $color,
+                    ],
+                    [ '%d', '%d', '%s' ]
+                );
+            }
+        }
     }
 
     public function enqueue_styles_and_scripts( $hook ) {
@@ -77,6 +100,10 @@ class Assessment_Quiz_Admin {
 
         // If on the 'add-new-quiz' page, pass categories data to the script
         if ( strpos( $hook, 'add-new-quiz' ) !== false ) {
+            // Enqueue the color picker style and script
+            wp_enqueue_style( 'wp-color-picker' );
+            wp_enqueue_script( 'wp-color-picker' );
+            
             global $wpdb;
             $categories_table = $wpdb->prefix . 'assessment_categories';
             $categories = $wpdb->get_results( "SELECT id, name FROM {$categories_table} ORDER BY name ASC", ARRAY_A );
@@ -170,16 +197,100 @@ class Assessment_Quiz_Admin {
     public function display_add_new_quiz_page() {
         $quiz_id = isset( $_GET['quiz_id'] ) ? intval( $_GET['quiz_id'] ) : 0;
         $existing_quiz_data = null;
-        if ( $quiz_id ) {
-            $existing_quiz_data = $this->get_quiz_data_for_editing( $quiz_id );
-        }
+        $tiers = [];
 
         global $wpdb;
+        $tiers_table = $wpdb->prefix . 'assessment_result_tiers';
+        $category_results_table = $wpdb->prefix . 'assessment_category_results';
+
+        if ( $quiz_id ) {
+            $existing_quiz_data = $this->get_quiz_data_for_editing( $quiz_id );
+
+            // Get the category IDs from the questions in the quiz
+            $category_ids = [];
+            if ( isset( $existing_quiz_data['sections'] ) ) {
+                foreach ( $existing_quiz_data['sections'] as $section ) {
+                    if ( isset( $section['questions'] ) ) {
+                        foreach ( $section['questions'] as $question ) {
+                            if ( ! empty( $question['category_id'] ) && ! in_array( $question['category_id'], $category_ids ) ) {
+                                $category_ids[] = $question['category_id'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ( ! empty( $category_ids ) ) {
+                $cat_placeholders = implode( ',', array_fill( 0, count( $category_ids ), '%d' ) );
+                $categories_table = $wpdb->prefix . 'assessment_categories';
+
+                $sql = $wpdb->prepare(
+                    "SELECT t.id, t.tier_name
+                     FROM {$tiers_table} t
+                     JOIN {$category_results_table} cr ON t.id = cr.result_tier_id
+                     JOIN {$categories_table} c ON cr.category_id = c.id
+                     WHERE cr.category_id IN ({$cat_placeholders})
+                     GROUP BY t.id, t.tier_name
+                     ORDER BY MIN(c.name) ASC, t.tier_name ASC",
+                    $category_ids
+                );
+                $tiers = $wpdb->get_results( $sql );
+            }
+        } else {
+            // For a new quiz, we no longer fetch all tiers here.
+            // $tiers remains an empty array, and the front-end will populate it via AJAX.
+            $tiers = [];
+        }
+
+        // For a new quiz, we no longer fetch all tiers here.
+        // $tiers remains an empty array, and the front-end will populate it via AJAX.
         $categories_table = $wpdb->prefix . 'assessment_categories';
         $categories = $wpdb->get_results( "SELECT * FROM {$categories_table} ORDER BY name ASC", ARRAY_A );
 
+        // Fetch saved colors for this quiz
+        $saved_colors = [];
+        if ( $quiz_id ) {
+            $colors_table = $wpdb->prefix . 'assessment_quiz_tier_colors';
+            $results = $wpdb->get_results( $wpdb->prepare( "SELECT tier_id, color FROM {$colors_table} WHERE quiz_id = %d", $quiz_id ), ARRAY_A );
+            foreach ( $results as $result ) {
+                $saved_colors[ $result['tier_id'] ] = $result['color'];
+            }
+        }
+
         // Correctly include the form template from the 'admin/templates' directory
         require_once plugin_dir_path( __FILE__ ) . '../admin/templates/add-new-quiz-form.php';
+    }
+
+    public function get_tiers_for_categories_handler() {
+        // Nonce check can be added here for security if needed, e.g., check_ajax_referer( 'my_nonce_action' );
+        check_ajax_referer( 'save_quiz_action', 'nonce' );
+        $category_ids = isset( $_POST['category_ids'] ) ? array_map( 'intval', $_POST['category_ids'] ) : [];
+
+        if ( empty( $category_ids ) ) {
+            wp_send_json_success( [] );
+        }
+
+        global $wpdb;
+        $tiers_table = $wpdb->prefix . 'assessment_result_tiers';
+        $category_results_table = $wpdb->prefix . 'assessment_category_results';
+        $categories_table = $wpdb->prefix . 'assessment_categories';
+
+        $cat_placeholders = implode( ',', array_fill( 0, count( $category_ids ), '%d' ) );
+
+        $sql = $wpdb->prepare(
+            "SELECT t.id, t.tier_name
+             FROM {$tiers_table} t
+             JOIN {$category_results_table} cr ON t.id = cr.result_tier_id
+             JOIN {$categories_table} c ON cr.category_id = c.id
+             WHERE cr.category_id IN ({$cat_placeholders})
+             GROUP BY t.id, t.tier_name
+             ORDER BY MIN(c.name) ASC, t.tier_name ASC",
+            $category_ids
+        );
+
+        $tiers = $wpdb->get_results( $sql );
+
+        wp_send_json_success( $tiers );
     }
 
     public function display_settings_page() {
@@ -917,6 +1028,11 @@ class Assessment_Quiz_Admin {
             $quiz_data['created_at'] = current_time( 'mysql' );
             $wpdb->insert( $quizzes_table, $quiz_data );
             $quiz_id = $wpdb->insert_id;
+        }
+
+        // Save the tier colors
+        if ( isset( $_POST['tier_colors'] ) && is_array( $_POST['tier_colors'] ) ) {
+            $this->save_tier_colors( $quiz_id, $_POST['tier_colors'] );
         }
 
         $submitted_section_ids = [];

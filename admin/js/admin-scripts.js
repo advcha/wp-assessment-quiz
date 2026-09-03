@@ -313,6 +313,7 @@
             }
 
             renderTable();
+            $(document).trigger('quizDataUpdated', [quizData]);
             closeModal($('#question-modal'));
         });
 
@@ -354,8 +355,11 @@
                 const sectionId = $row.data('section-id');
 
                 const section = quizData.sections.find(s => s.id == sectionId);
-                section.questions = section.questions.filter(q => q.id != questionId);
+                if (section) {
+                    section.questions = section.questions.filter(q => q.id != questionId);
+                }
                 renderTable();
+                $(document).trigger('quizDataUpdated', [quizData]);
             }
         });
 

@@ -79,6 +79,36 @@ if ( ! defined( 'WPINC' ) ) {
             </p>
         </div>
 
+        <!-- Result Tier Colors -->
+        <div class="form-section">
+            <h2>Result Tier Colors</h2>
+            <p class="description">Set a specific color for each result tier for this quiz. Tiers appear here when you add questions with associated categories.</p>
+            <table class="form-table">
+                <tbody id="result-tier-colors-container">
+                    <?php if ( ! empty( $tiers ) ) : ?>
+                        <?php foreach ( $tiers as $tier ) : ?>
+                            <tr>
+                                <th scope="row">
+                                    <label for="tier_color_<?php echo esc_attr( $tier->id ); ?>">
+                                        <?php echo esc_html( $tier->tier_name ); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <input type="text" id="tier_color_<?php echo esc_attr( $tier->id ); ?>" name="tier_colors[<?php echo esc_attr( $tier->id ); ?>]" value="<?php echo isset( $saved_colors[ $tier->id ] ) ? esc_attr( $saved_colors[ $tier->id ] ) : '#ffffff'; ?>" class="color-picker-field">
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="2">
+                                <p>No result tiers to display. Add questions with categories to see available tiers.</p>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
         <?php submit_button( 'Save Quiz' ); ?>
     </form>
 </div>
@@ -236,4 +266,110 @@ if ( ! defined( 'WPINC' ) ) {
 <script>
     // Pass existing quiz data to the JavaScript file for handling the dynamic parts
     var existingQuizData = <?php echo $existing_quiz_data ? json_encode( $existing_quiz_data ) : 'null'; ?>;
+</script>
+
+<script type="text/javascript">
+    jQuery(document).ready(function($) {
+        // Initialize color picker for any tiers loaded initially
+        $('.color-picker-field').wpColorPicker({
+            palettes: [
+                '#28a745', // Green
+                '#ffc107', // Yellow
+                '#dc3545', // Red
+                '#33a3dc', // Blue
+                '#000000', // Black
+                '#ffffff'  // White
+            ]
+        });
+
+        // Store saved colors in a global JS variable to access them later
+        window.savedTierColors = <?php echo json_encode( $saved_colors ); ?>;
+
+        // Function to update result tiers via AJAX
+        function updateResultTiers(data) {
+            var currentColors = {};
+            $('#result-tier-colors-container .wp-color-picker').each(function() {
+                var tierId = $(this).attr('id').split('_').pop();
+                var color = $(this).wpColorPicker('color');
+                if (tierId && color) {
+                    currentColors[tierId] = color;
+                }
+            });
+
+            var categoryIds = [];
+            // Ensure data is available
+            if (data && data.sections) {
+                data.sections.forEach(function(section) {
+                    if (section.questions) {
+                        section.questions.forEach(function(question) {
+                            // Use parseInt to ensure we have a number
+                            var catId = parseInt(question.category_id, 10);
+                            if (catId > 0 && categoryIds.indexOf(catId) === -1) {
+                                categoryIds.push(catId);
+                            }
+                        });
+                    }
+                });
+            }
+
+            var ajaxData = {
+                action: 'get_tiers_for_categories',
+                nonce: $('#save_quiz_nonce').val(), 
+                category_ids: categoryIds
+            };
+
+            $.post(ajaxurl, ajaxData, function(response) {
+                var container = $('#result-tier-colors-container');
+                container.empty(); // Clear current content
+
+                if (response.success && response.data.length > 0) {
+                    response.data.forEach(function(tier) {
+                        var color = '#000000'; // Default color
+                        if (currentColors[tier.id]) {
+                            color = currentColors[tier.id];
+                        } else if (window.savedTierColors && window.savedTierColors[tier.id]) {
+                            color = window.savedTierColors[tier.id];
+                        }
+                        var rowHTML = `
+                            <tr>
+                                <th scope="row">
+                                    <label for="tier_color_${tier.id}">${tier.tier_name}</label>
+                                </th>
+                                <td>
+                                    <input type="text" id="tier_color_${tier.id}" name="tier_colors[${tier.id}]" value="${color}" class="color-picker-field">
+                                </td>
+                            </tr>`;
+                        container.append(rowHTML);
+                    });
+
+                    // Re-initialize color pickers for the newly added fields
+                    $('.color-picker-field').wpColorPicker({
+                        palettes: [
+                            '#28a745', // Green
+                            '#ffc107', // Yellow
+                            '#dc3545', // Red
+                            '#33a3dc', // Blue
+                            '#000000', // Black
+                            '#ffffff'  // White
+                        ]
+                    });
+                } else {
+                    container.html('<tr><td colspan="2"><p>No result tiers to display. Add questions with categories to see available tiers.</p></td></tr>');
+                }
+            });
+        }
+
+        // Listen for the custom event to update tiers
+        $(document).on('quizDataUpdated', function(event, updatedQuizData) {
+            updateResultTiers(updatedQuizData);
+        });
+
+        // For existing quizzes, run the update on page load to show the correct tiers
+        /*if (parseInt($('input[name="quiz_id"]').val(), 10) > 0) {
+            updateResultTiers();
+        }*/
+       if (existingQuizData) {
+            updateResultTiers(existingQuizData);
+        }
+    });
 </script>
