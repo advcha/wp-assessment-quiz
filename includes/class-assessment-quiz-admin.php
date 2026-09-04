@@ -37,6 +37,7 @@ class Assessment_Quiz_Admin {
         add_action( 'admin_post_save_convertkit_settings', array( $this, 'save_convertkit_settings' ) );
         add_action( 'wp_ajax_get_tiers_for_categories', array( $this, 'get_tiers_for_categories_handler' ) );
         add_action( 'wp_ajax_validate_tier_threshold', array( $this, 'validate_tier_threshold_handler' ) );
+        add_action( 'wp_ajax_validate_category_has_results', array( $this, 'validate_category_has_results_handler' ) );
     }
 
     private function save_tier_colors( $quiz_id, $colors ) {
@@ -1099,6 +1100,41 @@ class Assessment_Quiz_Admin {
         }
 
         wp_send_json_success();
+    }
+
+    public function validate_category_has_results_handler() {
+        check_ajax_referer( 'save_quiz_action', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ], 403 );
+        }
+
+        $category_id = isset( $_POST['category_id'] ) ? intval( $_POST['category_id'] ) : 0;
+        if ( ! $category_id ) {
+            wp_send_json_success();
+            return;
+        }
+
+        global $wpdb;
+        $category_results_table = $wpdb->prefix . 'assessment_category_results';
+
+        $count = $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$category_results_table} WHERE category_id = %d",
+            $category_id
+        ) );
+
+        if ( $count > 0 ) {
+            wp_send_json_success();
+        } else {
+            $categories_table = $wpdb->prefix . 'assessment_categories';
+            $category_name = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$categories_table} WHERE id = %d", $category_id ) );
+
+            $message = sprintf(
+                "This category '%s' needs to have its result set in the 'Settings -> Category Result' section. If not, the Quiz result can't show up the user's score and result",
+                esc_html( $category_name )
+            );
+            wp_send_json_error( [ 'message' => $message ] );
+        }
     }
 
     public function display_submissions_page() {

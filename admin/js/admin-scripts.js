@@ -259,27 +259,13 @@
             }
         });
 
-        // --- Question Handling ---
-
-        $('#quiz-structure-body').on('click', '.add-question-btn', function (e) {
-            e.preventDefault();
-            const sectionId = $(this).closest('tr').data('section-id');
-            $('#question-id').val('');
-            $('#question-section-id').val(sectionId);
-            openModal($('#question-modal'));
-        });
-
-        $('#save-question-btn').on('click', function () {
+        function saveQuestion() {
             const questionText = getEditorContent('question-text');
-            if (!questionText) {
-                alert('Question text is required.');
-                return;
-            }
-
             const questionId = $('#question-id').val();
             const sectionId = $('#question-section-id').val();
             const questionType = $('#question-type').val();
             const categoryId = $('#question-category').val();
+            const categoryName = categoryId ? $('#question-category option:selected').text() : 'N/A';
 
             let answers = [];
             $('#answers-container .answer-item').each(function () {
@@ -299,6 +285,7 @@
                 question.text = questionText;
                 question.type = questionType;
                 question.category_id = categoryId;
+                question.category_name = categoryName;
                 question.answers = answers;
             } else {
                 // Adding new question
@@ -307,6 +294,7 @@
                     text: questionText,
                     type: questionType,
                     category_id: categoryId,
+                    category_name: categoryName,
                     answers: answers
                 };
                 section.questions.push(newQuestion);
@@ -315,6 +303,55 @@
             renderTable();
             $(document).trigger('quizDataUpdated', [quizData]);
             closeModal($('#question-modal'));
+        }
+
+        // --- Question Handling ---
+
+        $('#quiz-structure-body').on('click', '.add-question-btn', function (e) {
+            e.preventDefault();
+            const sectionId = $(this).closest('tr').data('section-id');
+            $('#question-id').val('');
+            $('#question-section-id').val(sectionId);
+            openModal($('#question-modal'));
+        });
+
+        $('#save-question-btn').on('click', function (e) {
+            e.preventDefault();
+
+            const questionText = getEditorContent('question-text');
+            if (!questionText) {
+                alert('Question text is required.');
+                return;
+            }
+
+            const categoryId = $('#question-category').val();
+            if (!categoryId) {
+                saveQuestion();
+                return;
+            }
+
+            const nonce = $('#save_quiz_nonce').val();
+
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'validate_category_has_results',
+                    nonce: nonce,
+                    category_id: categoryId
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        saveQuestion();
+                    } else {
+                        alert(response.data.message);
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while validating the category. Please try again.');
+                }
+            });
         });
 
         $('#quiz-structure-body').on('click', '.edit-question', function (e) {
