@@ -209,18 +209,25 @@ jQuery(document).ready(function($) {
         prevBtn.toggle(currentStepIndex > 0);
         const isLastQuestionStep = !steps.slice(currentStepIndex + 1).some(step => step.type === 'question');
         
-        nextBtn.toggle(!isLastQuestionStep && currentStepIndex < steps.length - 1);
-        submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
+        //nextBtn.toggle(!isLastQuestionStep && currentStepIndex < steps.length - 1);
+        //submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
 
         const currentStep = steps[currentStepIndex];
+        let showNext = !isLastQuestionStep && currentStepIndex < steps.length - 1;
         if (currentStep.type === 'question') {
             const question = currentStep.data;
+            if (question.question_type !== 'multiple') {
+                showNext = false;
+            }
             const isAnswerSelected = $(`input[name="question_${question.id}"]:checked`).length > 0;
             nextBtn.prop('disabled', !isAnswerSelected);
             submitBtn.prop('disabled', !isAnswerSelected);
         } else {
             nextBtn.prop('disabled', false);
         }
+
+        nextBtn.toggle(showNext);
+        submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
     }
 
     function saveCurrentAnswer() {
@@ -449,6 +456,17 @@ jQuery(document).ready(function($) {
 
         saveCurrentAnswer();
         updateButtonVisibility();
+
+        if ($this.is(':radio')) {
+            setTimeout(function() {
+                const isLastQuestionStep = !steps.slice(currentStepIndex + 1).some(step => step.type === 'question');
+                if (isLastQuestionStep) {
+                    submitBtn.trigger('click');
+                } else {
+                    nextBtn.trigger('click');
+                }
+            }, 300);
+        }
     });
 
     nextBtn.on('click', function() {
