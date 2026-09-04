@@ -142,9 +142,11 @@ class Assessment_Quiz_Frontend {
                                 <?php if (!empty($category_result['focus_area_description'])): ?>
                                     <div class="focus-area-description"><?php echo wp_kses_post( $category_result['focus_area_description'] ); ?></div>
                                 <?php endif; ?>
-                                <span class="category-score-tier">
-                                    Result: <span class="tier-<?php echo sanitize_html_class( strtolower( $category_result['tier_name'] ) ); ?>"><?php echo esc_html( $category_result['tier_name'] ); ?></span> (Score: <?php echo esc_html( $category_result['score'] ); ?> of <?php echo esc_html( $category_result['total_possible_points'] ); ?>)
-                                </span>
+                                <div class="category-score-tier">
+                                    Result: <span style="color: <?php echo esc_attr( $category_result['tier_color'] ); ?>;"><?php echo esc_html( $category_result['tier_name'] ); ?></span>
+                                    <br>
+                                    Score: <?php echo esc_html( $category_result['score'] ); ?> of <?php echo esc_html( $category_result['total_possible_points'] ); ?>
+                                </div>
                             </div>
                         </li>
                     <?php endforeach; ?>
@@ -231,6 +233,7 @@ class Assessment_Quiz_Frontend {
         $questions_table = $wpdb->prefix . 'assessment_questions';
         $answers_table = $wpdb->prefix . 'assessment_answers';
         $sections_table = $wpdb->prefix . 'assessment_sections';
+        $tier_colors_table = $wpdb->prefix . 'assessment_quiz_tier_colors';
 
         // 1. Get quiz_id from submission
         $quiz_id = $wpdb->get_var($wpdb->prepare("SELECT quiz_id FROM $submissions_table WHERE id = %d", $submission_id));
@@ -321,6 +324,16 @@ class Assessment_Quiz_Frontend {
                     $tier->id
                 ) );
 
+                $tier_color = $wpdb->get_var($wpdb->prepare(
+                    "SELECT color FROM $tier_colors_table WHERE quiz_id = %d AND tier_id = %d",
+                    $quiz_id,
+                    $tier->id
+                ));
+
+                if ( ! $tier_color ) {
+                    $tier_color = '#000000'; // Default color
+                }
+
                 $use_default_convertkit = !($category_result && !empty($category_result->convertkit_form_id));
 
                 $focus_area_desc = $category_result ? wp_specialchars_decode(stripslashes($category_result->focus_area_description), ENT_QUOTES) : "Result details for tier '{$tier->tier_name}' have not been configured.";
@@ -332,6 +345,7 @@ class Assessment_Quiz_Frontend {
                     'score'                     => $score_data->score,
                     'total_possible_points'     => $total_possible_points,
                     'tier_name'                 => $tier->tier_name,
+                    'tier_color'                => $tier_color,
                     'focus_area_title'          => $category_result ? stripslashes($category_result->focus_area_title) : '',
                     'focus_area_description'    => $focus_area_desc,
                     'healing_plan_details'      => $category_result ? wp_specialchars_decode(stripslashes($category_result->healing_plan_details), ENT_QUOTES) : '',
@@ -347,6 +361,7 @@ class Assessment_Quiz_Frontend {
                     'score'                     => $score_data->score,
                     'total_possible_points'     => $total_possible_points,
                     'tier_name'                 => '-',
+                    'tier_color'                => '#000000',
                     'focus_area_title'          => '',
                     'focus_area_description'    => "Result details for category '{$score_data->category_name}' have not been configured.",
                     'healing_plan_details'      => '',

@@ -444,11 +444,13 @@ body.page-template-template-quiz .footer-width-fixer a:hover {
 .focus-area-description {
     color: #7f8c8d;
     margin-bottom: 10px;
-    font-size: 0.8em;
+    font-size: 0.7em;
+    font-weight: bold;
 }
 
 .category-score-tier {
     font-weight: bold;
+    text-align: center;
 }
 
 /* Tier-specific colors */
