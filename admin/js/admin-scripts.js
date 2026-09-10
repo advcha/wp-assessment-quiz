@@ -181,7 +181,9 @@
 
         $('#section-on-end').on('change', function() {
             if ($(this).val() === 'jump_to_section') {
-                $('.jump-section-jump-target').show();
+                const sectionId = $('#section-id').val(); // Get the current section ID from the form
+                populateMainSectionsDropdown($('#section-on-end-jump-to'), sectionId); // Populate the dropdown
+                $('.jump-section-jump-target').show(); // Show the dropdown container
             } else {
                 $('.jump-section-jump-target').hide();
             }
