@@ -130,12 +130,46 @@ if ( ! defined( 'WPINC' ) ) {
                     <td><input type="text" id="section-title" class="regular-text" required></td>
                 </tr>
                 <tr>
+                    <th scope="row"><label for="section-type">Section Type</label></th>
+                    <td>
+                        <select id="section-type">
+                            <option value="main">Main Section</option>
+                            <option value="jump">Jump Target</option>
+                        </select>
+                        <p class="description">
+                            'Main Sections' form the primary path of the quiz. 'Jump Targets' are sections that can be jumped to from an answer.
+                        </p>
+                    </td>
+                </tr>
+                <tr>
                     <th scope="row"><label for="section-content-begin">Content (Begin)</label></th>
                     <td><textarea id="section-content-begin" class="large-text" rows="5"></textarea></td>
                 </tr>
                 <tr>
                     <th scope="row"><label for="section-content-end">Content (End)</label></th>
                     <td><textarea id="section-content-end" class="large-text" rows="5"></textarea></td>
+                </tr>
+                <tr class="jump-section-options" style="display: none;">
+                    <th scope="row"><label for="section-on-end">When this section ends</label></th>
+                    <td>
+                        <select id="section-on-end">
+                            <option value="return">Back to the original section</option>
+                            <option value="jump_to_section">Jump to another section</option>
+                            <option value="end_quiz">End the quiz</option>
+                        </select>
+                        <p class="description">
+                            Define the quiz flow after this 'Jump Target' section is completed.
+                        </p>
+                    </td>
+                </tr>
+                <tr class="jump-section-jump-target" style="display: none;">
+                    <th scope="row"><label for="section-on-end-jump-to">Jump to</label></th>
+                    <td>
+                        <select id="section-on-end-jump-to">
+                            <option value="">-- Select a section --</option>
+                            <!-- Main sections will be populated here by JavaScript -->
+                        </select>
+                    </td>
                 </tr>
             </table>
             <p>
@@ -223,7 +257,7 @@ if ( ! defined( 'WPINC' ) ) {
             </div>
             <button type="button" class="toggle-row"></button>
         </td>
-        <td>Section</td>
+        <td>__SECTION_TYPE_ICON__ Section</td>
         <td></td>
         <td>
             <button type="button" class="button button-secondary add-question-btn">+ Add Question</button>
@@ -257,6 +291,15 @@ if ( ! defined( 'WPINC' ) ) {
             <tr>
                 <th scope="row"><label>Points</label></th>
                 <td><input type="number" class="small-text answer-points" value="0"></td>
+            </tr>
+            <tr>
+                <th scope="row"><label>Jump to Section</label></th>
+                <td>
+                    <select class="answer-jump-to-section">
+                        <option value="">-- No Jump --</option>
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </td>
             </tr>
         </table>
         <button type="button" class="button button-link-delete remove-answer-btn">Remove Answer</button>

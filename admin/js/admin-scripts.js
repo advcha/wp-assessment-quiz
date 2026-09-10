@@ -86,6 +86,9 @@
                 return {
                     id: sectionData.id, // Keep original DB ID
                     title: sectionData.title,
+                    type: sectionData.section_type || 'main', // Add this line
+                    on_end: sectionData.on_end,
+                    on_end_jump_to: sectionData.on_end_jump_to,
                     content_begin: sectionData.section_content_begin,
                     content_end: sectionData.section_content_end,
                     questions: sectionData.questions ? sectionData.questions.map(questionData => {
@@ -99,7 +102,8 @@
                                 return {
                                     id: answerData.id, // Keep original DB ID
                                     text: answerData.answer_text,
-                                    points: answerData.points
+                                    points: answerData.points,
+                                    jump_to_section_id: answerData.jump_to_section_id
                                 };
                             }) : []
                         };
@@ -161,9 +165,35 @@
 
         // --- Section Handling ---
 
+        // Show/hide jump section options based on section type
+        $('#section-type').on('change', function() {
+            if ($(this).val() === 'jump') {
+                $('.jump-section-options').show();
+                const sectionId = $('#section-id').val();
+                populateMainSectionsDropdown($('#section-on-end-jump-to'), sectionId);
+                // Also trigger the change for the on-end dropdown
+                $('#section-on-end').trigger('change');
+            } else {
+                $('.jump-section-options').hide();
+                $('.jump-section-jump-target').hide();
+            }
+        });
+
+        $('#section-on-end').on('change', function() {
+            if ($(this).val() === 'jump_to_section') {
+                $('.jump-section-jump-target').show();
+            } else {
+                $('.jump-section-jump-target').hide();
+            }
+        });
+
         $('#add-section-btn').on('click', function () {
             $('#section-id').val('');
             $('#section-form')[0].reset();
+
+            // Explicitly hide jump section options for a new section
+            $('.jump-section-options').hide();
+            $('.jump-section-jump-target').hide();
 
             // Clear editor content and underlying textareas
             if (typeof tinymce !== 'undefined') {
@@ -191,25 +221,52 @@
             }
 
             const sectionId = $('#section-id').val();
+            const sectionType = $('#section-type').val();
             const contentBegin = getEditorContent('section-content-begin');
             const contentEnd = getEditorContent('section-content-end');
+            const onEnd = $('#section-on-end').val();
+            const onEndJumpTo = $('#section-on-end-jump-to').val();
+
+            if (sectionType === 'jump' && onEnd === 'jump_to_section' && (!onEndJumpTo || onEndJumpTo == '0' || onEndJumpTo === '')) {
+                alert("Cannot save this section. The 'Jump To' destination is missing. This usually happens when there are no available 'main' sections to jump to after this one.");
+                return;
+            }
 
             if (sectionId) {
                 // Editing existing section
                 const section = quizData.sections.find(s => s.id == sectionId);
                 section.title = sectionTitle;
+                section.type = sectionType;
                 section.content_begin = contentBegin;
                 section.content_end = contentEnd;
+                if (section.type === 'jump') {
+                    section.on_end = onEnd;
+                    if (onEnd === 'jump_to_section') {
+                        section.on_end_jump_to = onEndJumpTo;
+                    } else {
+                        delete section.on_end_jump_to;
+                    }
+                } else {
+                    delete section.on_end;
+                    delete section.on_end_jump_to;
+                }
             } else {
                 // Adding new section
                 const newSection = {
                     // Use a prefix for temporary client-side IDs
                     id: 'new_' + new Date().getTime(),
                     title: sectionTitle,
+                    type: sectionType,
                     content_begin: contentBegin,
                     content_end: contentEnd,
                     questions: []
                 };
+                if (newSection.type === 'jump') {
+                    newSection.on_end = onEnd;
+                    if (onEnd === 'jump_to_section') {
+                        newSection.on_end_jump_to = onEndJumpTo;
+                    }
+                }
                 quizData.sections.push(newSection);
             }
 
@@ -224,10 +281,28 @@
 
             $('#section-id').val(section.id);
             $('#section-title').val(section.title);
+            $('#section-type').val(section.type || 'main');
 
             // Set the value for the underlying textareas
             $('#section-content-begin').val(section.content_begin || '');
             $('#section-content-end').val(section.content_end || '');
+
+            // Handle jump section options
+            if (section.type === 'jump') {
+                $('.jump-section-options').show();
+                $('#section-on-end').val(section.on_end || 'return');
+
+                if (section.on_end === 'jump_to_section') {
+                    $('.jump-section-jump-target').show();
+                    populateMainSectionsDropdown($('#section-on-end-jump-to'), section.id);
+                    $('#section-on-end-jump-to').val(section.on_end_jump_to || '');
+                } else {
+                    $('.jump-section-jump-target').hide();
+                }
+            } else {
+                $('.jump-section-options').hide();
+                $('.jump-section-jump-target').hide();
+            }
 
             // Ensure editors are initialized (will only run on first open)
             initializeEditor($('#section-content-begin'));
@@ -259,6 +334,24 @@
             }
         });
 
+        function populateMainSectionsDropdown($dropdown, currentSectionId) {
+            $dropdown.empty().append($('<option>', { value: '', text: '-- Select a section --' }));
+            if (quizData && quizData.sections) {
+                const currentSectionIndex = quizData.sections.findIndex(s => s.id == currentSectionId);
+                quizData.sections.forEach((section, index) => {
+                    // Only add 'main' sections that appear after the current jump section
+                    if (section.type === 'main' && index > currentSectionIndex) {
+                        $dropdown.append(
+                            $('<option>', {
+                                value: section.id,
+                                text: section.title
+                            })
+                        );
+                    }
+                });
+            }
+        }
+
         function saveQuestion() {
             const questionText = getEditorContent('question-text');
             const questionId = $('#question-id').val();
@@ -274,7 +367,8 @@
                 const answerText = getEditorContent(editorId);
                 const answerPoints = $item.find('.answer-points').val();
                 const answerId = $item.data('answer-id');
-                answers.push({ id: answerId, text: answerText, points: answerPoints });
+                const jumpToSectionId = $item.find('.answer-jump-to-section').val();
+                answers.push({ id: answerId, text: answerText, points: answerPoints, jump_to_section_id: jumpToSectionId });
             });
 
             const section = quizData.sections.find(s => s.id == sectionId);
@@ -429,6 +523,34 @@
             }
             $newAnswer.find('.answer-points').val(answer.points || 0);
 
+            const questionSectionId = $('#question-section-id').val();
+            const currentSection = quizData.sections.find(s => s.id == questionSectionId);
+
+            // Populate the jump-to-section dropdown
+            const $jumpToDropdown = $newAnswer.find('.answer-jump-to-section');
+            if (currentSection && currentSection.type === 'main') {
+                if (quizData && quizData.sections) {
+                    quizData.sections.forEach(section => {
+                        if (section.type === 'jump') { // Only add 'jump' sections
+                            $jumpToDropdown.append(
+                                $('<option>', {
+                                    value: section.id,
+                                    text: section.title
+                                })
+                            );
+                        }
+                    });
+                }
+            } else {
+                // If the section is not 'main', hide the jump to section row
+                $jumpToDropdown.closest('tr').hide();
+            }
+
+            // Set the selected value if it exists
+            if (answer.jump_to_section_id) {
+                $jumpToDropdown.val(answer.jump_to_section_id);
+            }
+
             $('#answers-container').append($newAnswer);
             initializeEditor($newAnswer.find('.answer-text'));
         }
@@ -483,9 +605,17 @@
                     sectionTitle = highlightText(section.title, searchTerm);
                 }
 
+                let sectionTypeIcon = '';
+                if (section.type === 'jump') {
+                    sectionTypeIcon = '<i class="fas fa-directions" style="font-size: 18px; color: #0073aa;"></i>'; // Blue icon for jump
+                } else {
+                    sectionTypeIcon = '<i class="fas fa-stream" style="font-size: 18px; color: #46b450;"></i>'; // Green icon for main
+                }
+
                 let sectionHtml = sectionTemplate
                     .replace(/__SECTION_ID__/g, section.id)
-                    .replace(/__SECTION_TITLE__/g, sectionTitle);
+                    .replace(/__SECTION_TITLE__/g, sectionTitle)
+                    .replace(/__SECTION_TYPE_ICON__/g, sectionTypeIcon);
                 $tbody.append(sectionHtml);
 
                 visibleQuestions.forEach(question => {
@@ -612,9 +742,17 @@
                     $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][id]`, value: section.id, class: 'quiz-data-hidden' }).appendTo(this);
                 }
                 $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][title]`, value: section.title, class: 'quiz-data-hidden' }).appendTo(this);
+                $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][section_type]`, value: section.type || 'main', class: 'quiz-data-hidden' }).appendTo(this);
                 $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][content_begin]`, value: section.content_begin || '', class: 'quiz-data-hidden' }).appendTo(this);
                 $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][content_end]`, value: section.content_end || '', class: 'quiz-data-hidden' }).appendTo(this);
                 $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][order]`, value: sectionIndex, class: 'quiz-data-hidden' }).appendTo(this);
+
+                if (section.type === 'jump') {
+                    $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][on_end]`, value: section.on_end || 'return', class: 'quiz-data-hidden' }).appendTo(this);
+                    if (section.on_end === 'jump_to_section') {
+                        $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][on_end_jump_to]`, value: section.on_end_jump_to || 0, class: 'quiz-data-hidden' }).appendTo(this);
+                    }
+                }
 
                 section.questions.forEach((question, questionIndex) => {
                     if (question.id && !String(question.id).startsWith('new_')) {
@@ -631,6 +769,7 @@
                         }
                         $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][answers][${answerIndex}][text]`, value: answer.text, class: 'quiz-data-hidden' }).appendTo(this);
                         $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][answers][${answerIndex}][points]`, value: answer.points, class: 'quiz-data-hidden' }).appendTo(this);
+                        $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][answers][${answerIndex}][jump_to_section_id]`, value: answer.jump_to_section_id || 0, class: 'quiz-data-hidden' }).appendTo(this);
                         $('<input>').attr({ type: 'hidden', name: `sections[${sectionIndex}][questions][${questionIndex}][answers][${answerIndex}][order]`, value: answerIndex, class: 'quiz-data-hidden' }).appendTo(this);
                     });
                 });

@@ -464,7 +464,7 @@ class Assessment_Quiz_Frontend {
                 }
                 
                 // 4. Get Answers for each Question
-                $answers = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $answers_table WHERE question_id = %d ORDER BY answer_order ASC", $question->id ) );
+                $answers = $wpdb->get_results( $wpdb->prepare( "SELECT id, question_id, answer_text, points, jump_to_section_id, answer_order FROM $answers_table WHERE question_id = %d ORDER BY answer_order ASC", $question->id ) );
                 $decoded_answers = [];
                 foreach ($answers as $answer) {
                     $answer_data = (array) $answer;

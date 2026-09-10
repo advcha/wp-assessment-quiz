@@ -79,6 +79,15 @@ class Assessment_Quiz_Admin {
             'all'
         );
 
+        // Enqueue Font Awesome from a CDN
+        wp_enqueue_style(
+            'font-awesome',
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css',
+            array(),
+            '5.15.4',
+            'all'
+        );
+
         // This is required for the media uploader
         wp_enqueue_media();
 
@@ -1183,27 +1192,54 @@ class Assessment_Quiz_Admin {
         $submitted_question_ids = [];
         $submitted_answer_ids = [];
 
+        // Add a map to track temporary frontend IDs to new database IDs
+        $section_id_map = [];
+
         if ( isset( $_POST['sections'] ) && is_array( $_POST['sections'] ) ) {
             foreach ( $_POST['sections'] as $section_index => $section_data ) {
                 $section_id = isset( $section_data['id'] ) ? intval( $section_data['id'] ) : 0;
+                $is_new_section = ! (is_numeric( $section_id ) && $section_data['id'] > 0);
                 $section_title = sanitize_text_field( $section_data['title'] );
+                $section_type = isset( $section_data['section_type'] ) && in_array( $section_data['section_type'], [ 'main', 'jump' ] ) ? $section_data['section_type'] : 'main';
                 $section_content_begin = wp_kses_post( $section_data['content_begin'] );
                 $section_content_end = wp_kses_post( $section_data['content_end'] );
+
+                // Initialize variables for on_end behavior to NULL
+                $section_on_end = null;
+                $section_on_end_jump_to = null;
+
+                // Only process and save these fields if the section is a 'jump' type
+                if ( $section_type === 'jump' ) {
+                    $section_on_end = isset( $section_data['on_end'] ) && in_array( $section_data['on_end'], [ 'return', 'jump_to_section', 'end_quiz' ] ) ? $section_data['on_end'] : 'return';
+                    
+                    if ( $section_on_end === 'jump_to_section' && isset( $section_data['on_end_jump_to'] ) ) {
+                        $section_on_end_jump_to = intval( $section_data['on_end_jump_to'] );
+                    }
+                }
 
                 $section_db_data = [
                     'quiz_id' => $quiz_id,
                     'title'   => $section_title,
+                    'section_type' => $section_type,
                     'section_content_begin' => $section_content_begin,
                     'section_content_end'   => $section_content_end,
+                    'on_end' => $section_on_end,
+                    'on_end_jump_to' => $section_on_end_jump_to,
                     'section_order' => $section_index + 1,
                 ];
 
-                if ( $section_id ) {
-                    $wpdb->update( $sections_table, $section_db_data, [ 'id' => $section_id ] );
-                } else {
+                if ( $is_new_section ) {
                     $wpdb->insert( $sections_table, $section_db_data );
-                    $section_id = $wpdb->insert_id;
+                    $new_section_id = $wpdb->insert_id;
+                    $section_id_map[ $section_id ] = $new_section_id;
+                    $section_id = $new_section_id;
+                } else {
+                    $section_id = intval( $section_id );
+                    if ( $section_id ) {
+                        $wpdb->update( $sections_table, $section_db_data, [ 'id' => $section_id ] );
+                    }
                 }
+
                 $submitted_section_ids[] = $section_id;
 
                 if ( isset( $section_data['questions'] ) && is_array( $section_data['questions'] ) ) {
@@ -1235,11 +1271,20 @@ class Assessment_Quiz_Admin {
                                 $answer_id = isset( $answer_data['id'] ) ? intval( $answer_data['id'] ) : 0;
                                 $answer_text = wp_kses_post( $answer_data['text'] );
                                 $answer_points = intval( $answer_data['points'] );
+                                $jump_to_section_id = isset( $answer_data['jump_to_section_id'] ) ? $answer_data['jump_to_section_id'] : 0;
+
+                                // If the jump_to_section_id is a temporary ID, get the new database ID
+                                if ( ! is_numeric( $jump_to_section_id ) && isset( $section_id_map[ $jump_to_section_id ] ) ) {
+                                    $jump_to_section_id = $section_id_map[ $jump_to_section_id ];
+                                } else {
+                                    $jump_to_section_id = intval( $jump_to_section_id );
+                                }
 
                                 $answer_db_data = [
                                     'question_id'   => $question_id,
                                     'answer_text'   => $answer_text,
                                     'points'        => $answer_points,
+                                    'jump_to_section_id' => $jump_to_section_id,
                                     'answer_order'  => $answer_index + 1,
                                 ];
 

@@ -12,15 +12,31 @@ jQuery(document).ready(function($) {
     const quizQuestionProgressBar = $('#quiz-question-progress-bar');
     const quizBody = $('#quiz-body');
     const quizResults = $('#quiz-results');
-    const prevBtn = $('#prev-btn');
+    //const prevBtn = $('#prev-btn');
     const nextBtn = $('#next-btn');
     const submitBtn = $('#submit-btn');
     const quizSpinner = $('#quiz-spinner');
 
-    let steps = [];
-    let currentStepIndex = 0;
+    //let steps = [];
+    //let currentStepIndex = 0;
+
+    // Add these new state variables:
+    let currentView = 'intro'; // Can be: 'intro', 'section_begin', 'question', 'section_end'
+    let currentSectionIndex = 0;
+    let currentQuestionIndex = 0;
     const userAnswers = {};
     let answerMap = {};
+    const jumpHistory = []; // Stack to track jumps
+
+    function findLastMainSectionIndex() {
+        for (let i = assessmentQuizData.sections.length - 1; i >= 0; i--) {
+            if (assessmentQuizData.sections[i].section_type === 'main') {
+                return i;
+            }
+        }
+        return -1; // No more main sections
+    }
+    const lastMainSectionIndex = findLastMainSectionIndex();
 
     let categoryScores = {};
     let sortedCategoryIds = [];
@@ -36,65 +52,15 @@ jQuery(document).ready(function($) {
         });
     }
 
-    // Build the sequence of steps for the quiz
-    function buildSteps() {
-        steps.push({ type: 'intro', sectionId: null });
-
-        // First, calculate the total number of questions in the entire quiz
-        let totalQuizQuestions = 0;
-        assessmentQuizData.sections.forEach(section => {
-            totalQuizQuestions += (section.questions || []).length;
-        });
-
-        let cumulativeQuestionIndex = 0;
-        assessmentQuizData.sections.forEach(section => {
-            const questions = section.questions || [];
-            
-            if (section.section_content_begin) {
-                steps.push({
-                    type: 'section_begin',
-                    data: section,
-                    sectionId: section.id,
-                    progress: {
-                        current: cumulativeQuestionIndex - 1,
-                        total: totalQuizQuestions
-                    }
-                });
-            }
-
-            questions.forEach((question, index) => {
-                steps.push({
-                    type: 'question',
-                    data: question,
-                    sectionId: section.id,
-                    progress: {
-                        current: cumulativeQuestionIndex + index,
-                        total: totalQuizQuestions
-                    }
-                });
-            });
-            
-            cumulativeQuestionIndex += questions.length;
-
-            if (section.section_content_end) {
-                steps.push({
-                    type: 'section_end',
-                    data: section,
-                    sectionId: section.id,
-                    progress: {
-                        current: cumulativeQuestionIndex - 1,
-                        total: totalQuizQuestions
-                    }
-                });
-            }
-        });
-    }
-
     // Renders the section titles (e.g., "Section 1 | Section 2")
     function renderSectionTitles() {
         quizSectionProgressBar.empty();
         const sectionList = $('<ul class="quiz-progress-list"></ul>');
-        assessmentQuizData.sections.forEach((section, index) => {
+        
+        // Filter sections to only include those with type 'main'
+        const mainSections = assessmentQuizData.sections.filter(section => section.section_type === 'main');
+
+        mainSections.forEach((section, index) => {
             const sectionItem = $(`<li></li>`)
                 .addClass('quiz-progress-item')
                 .attr('data-section-id', section.id)
@@ -102,7 +68,7 @@ jQuery(document).ready(function($) {
             
             sectionList.append(sectionItem);
 
-            if (index < assessmentQuizData.sections.length - 1) {
+            if (index < mainSections.length - 1) {
                 sectionList.append($('<li class="quiz-progress-separator">|</li>'));
             }
         });
@@ -112,9 +78,32 @@ jQuery(document).ready(function($) {
     // Highlights the current section in the title list
     function updateSectionHighlight() {
         $('.quiz-progress-item').removeClass('active');
-        const currentStep = steps[currentStepIndex];
-        if (currentStep.sectionId) {
-            $(`.quiz-progress-item[data-section-id="${currentStep.sectionId}"]`).addClass('active');
+        const currentSection = assessmentQuizData.sections[currentSectionIndex];
+        
+        if (currentSection) {
+            let sectionItem = $(`.quiz-progress-item[data-section-id="${currentSection.id}"]`);
+
+            // If the section is not in the progress bar, add it.
+            if (sectionItem.length === 0) {
+                const sectionList = $('.quiz-progress-list');
+                if (sectionList.length > 0) {
+                    // Check if there are already items to add a separator
+                    if (sectionList.children().length > 0) {
+                        sectionList.append($('<li class="quiz-progress-separator">|</li>'));
+                    }
+                    const newSectionItem = $(`<li></li>`)
+                        .addClass('quiz-progress-item')
+                        .attr('data-section-id', currentSection.id)
+                        .text(currentSection.title);
+                    sectionList.append(newSectionItem);
+                    sectionItem = newSectionItem;
+                }
+            }
+            
+            // Add active class
+            if (sectionItem.length > 0) {
+                sectionItem.addClass('active');
+            }
         }
     }
 
@@ -134,28 +123,45 @@ jQuery(document).ready(function($) {
         }
     }
 
-    // Main function to render a step
-    function renderStep(index) {
-        const step = steps[index];
+    // Main function to render the current view
+    function renderCurrentView() {
         quizBody.empty();
 
+        // Hide all components by default
         quizHeader.hide();
         quizSectionProgressBar.hide();
         quizQuestionProgressBar.hide();
+        nextBtn.hide();
+        submitBtn.hide();
 
-        if (step.type === 'intro') {
-            quizHeader.show();
-            $('#quiz-title').html(assessmentQuizData.title);
-            $('#quiz-description').html(assessmentQuizData.description);
-        } else {
-            quizSectionProgressBar.show();
-            quizQuestionProgressBar.show();
-            updateSectionHighlight();
-            
-            renderQuestionProgressBar(step.progress.total, step.progress.current);
+        updateSectionHighlight();
 
-            if (step.type === 'question') {
-                const question = step.data;
+        switch (currentView) {
+            case 'intro':
+                quizHeader.show();
+                $('#quiz-title').html(assessmentQuizData.title);
+                $('#quiz-description').html(assessmentQuizData.description);
+                nextBtn.show().prop('disabled', false).text('Start Quiz');
+                break;
+
+            case 'section_begin':
+                quizSectionProgressBar.show();
+                const sectionBegin = assessmentQuizData.sections[currentSectionIndex];
+                if (sectionBegin && sectionBegin.section_content_begin) {
+                    quizBody.html(sectionBegin.section_content_begin);
+                }
+                nextBtn.show().prop('disabled', false).text('Continue');
+                break;
+
+            case 'question':
+                quizSectionProgressBar.show();
+                quizQuestionProgressBar.show();
+                
+                const section = assessmentQuizData.sections[currentSectionIndex];
+                const question = section.questions[currentQuestionIndex];
+                
+                renderQuestionProgressBar(section.questions.length, currentQuestionIndex);
+
                 const questionContainer = $('<div class="question-container"></div>').attr('data-question-id', question.id);
                 const questionText = $('<h4></h4>').html(question.question_text);
                 const answersContainer = $('<div class="answers-container"></div>');
@@ -163,7 +169,6 @@ jQuery(document).ready(function($) {
                 const isMultipleChoice = question.question_type === 'multiple';
                 answersContainer.addClass(isMultipleChoice ? 'is-multiple-choice' : 'is-single-choice');
 
-                // Check if any answer contains an image
                 const hasImages = question.answers.some(answer => answer.answer_text.includes('<img'));
                 if (hasImages) {
                     answersContainer.addClass('has-image-options');
@@ -196,71 +201,82 @@ jQuery(document).ready(function($) {
 
                 questionContainer.append(questionText).append(answersContainer);
                 quizBody.append(questionContainer);
-            } else { // section_begin or section_end
-                const contentKey = step.type === 'section_begin' ? 'section_content_begin' : 'section_content_end';
-                quizBody.html(step.data[contentKey]);
-            }
+
+                // --- Button Visibility ---
+                const isLastMainSection = currentSectionIndex === lastMainSectionIndex;
+                const isLastQuestionOfSection = currentQuestionIndex === section.questions.length - 1;
+                const doesSectionEndQuiz = section.on_end === 'end_quiz';
+
+                const isLastQuestionInQuiz = (isLastMainSection && isLastQuestionOfSection) || (doesSectionEndQuiz && isLastQuestionOfSection);
+
+                if (question.question_type === 'multiple') {
+                    const isAnswerSelected = $(`input[name="question_${question.id}"]:checked`).length > 0;
+                    if (isLastQuestionInQuiz) {
+                        submitBtn.show().prop('disabled', !isAnswerSelected);
+                    } else {
+                        nextBtn.show().prop('disabled', !isAnswerSelected).text('Next');
+                    }
+                } else { // For radio, button is hidden, auto-advance will handle it
+                    nextBtn.hide();
+                    submitBtn.hide();
+                }
+                break;
+
+            case 'section_end':
+                quizSectionProgressBar.show();
+                const sectionEnd = assessmentQuizData.sections[currentSectionIndex];
+                if (sectionEnd && sectionEnd.section_content_end) {
+                    quizBody.html(sectionEnd.section_content_end);
+                }
+                
+                const isLastMain = currentSectionIndex === lastMainSectionIndex;
+                // This is the key change: check if the current section is set to end the quiz.
+                const shouldEndQuiz = sectionEnd.on_end === 'end_quiz';
+
+                if (isLastMain || shouldEndQuiz) {
+                    submitBtn.show().prop('disabled', false);
+                } else {
+                    nextBtn.show().prop('disabled', false).text('Next Section');
+                }
+                break;
         }
-
-        updateButtonVisibility();
-    }
-
-    function updateButtonVisibility() {
-        prevBtn.toggle(currentStepIndex > 0);
-        const isLastQuestionStep = !steps.slice(currentStepIndex + 1).some(step => step.type === 'question');
-        
-        //nextBtn.toggle(!isLastQuestionStep && currentStepIndex < steps.length - 1);
-        //submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
-
-        const currentStep = steps[currentStepIndex];
-        let showNext = !isLastQuestionStep && currentStepIndex < steps.length - 1;
-        if (currentStep.type === 'question') {
-            const question = currentStep.data;
-            if (question.question_type !== 'multiple') {
-                showNext = false;
-            }
-            const isAnswerSelected = $(`input[name="question_${question.id}"]:checked`).length > 0;
-            nextBtn.prop('disabled', !isAnswerSelected);
-            submitBtn.prop('disabled', !isAnswerSelected);
-        } else {
-            nextBtn.prop('disabled', false);
-        }
-
-        nextBtn.toggle(showNext);
-        submitBtn.toggle(isLastQuestionStep && currentStepIndex > 0);
     }
 
     function saveCurrentAnswer() {
-        const currentStep = steps[currentStepIndex];
-        if (currentStep.type === 'question') {
-            const question = currentStep.data;
-            const inputName = `question_${question.id}`;
-            const categoryId = question.category_id;
+        if (currentView !== 'question') return;
 
-            const findAnswerData = (answerId) => answerMap[answerId] || null;
+        const section = assessmentQuizData.sections[currentSectionIndex];
+        if (!section || !section.questions) return;
 
-            if (question.question_type === 'multiple') {
-                userAnswers[question.id] = $(`input[name="${inputName}"]:checked`).map(function() {
-                    const answerId = $(this).val();
-                    const answerData = findAnswerData(answerId);
-                    return {
-                        answerId: answerId,
-                        points: answerData ? parseInt(answerData.points) : 0,
-                        categoryId: categoryId
-                    };
-                }).get();
+        const question = section.questions[currentQuestionIndex];
+        if (!question) return;
+
+        const inputName = `question_${question.id}`;
+        const categoryId = question.category_id;
+
+        const findAnswerData = (answerId) => answerMap[answerId] || null;
+
+        if (question.question_type === 'multiple') {
+            userAnswers[question.id] = $(`input[name="${inputName}"]:checked`).map(function() {
+                const answerId = $(this).val();
+                const answerData = findAnswerData(answerId);
+                return {
+                    answerId: answerId,
+                    points: answerData ? parseInt(answerData.points) : 0,
+                    categoryId: categoryId
+                };
+            }).get();
+        } else {
+            const selectedAnswerId = $(`input[name="${inputName}"]:checked`).val();
+            if (selectedAnswerId) {
+                const answerData = findAnswerData(selectedAnswerId);
+                userAnswers[question.id] = {
+                    answerId: selectedAnswerId,
+                    points: answerData ? parseInt(answerData.points) : 0,
+                    categoryId: categoryId
+                };
             } else {
-                const selectedAnswerId = $(`input[name="${inputName}"]:checked`).val();
-                if (selectedAnswerId) {
-                    const answerData = findAnswerData(selectedAnswerId);
-                    userAnswers[question.id] = {
-                        answerId: selectedAnswerId,
-                        points: answerData ? parseInt(answerData.points) : 0,
-                        categoryId: categoryId
-                    };
-                } else {
-                    delete userAnswers[question.id];
-                }
+                delete userAnswers[question.id];
             }
         }
     }
@@ -392,7 +408,7 @@ jQuery(document).ready(function($) {
         quizSectionProgressBar.hide();
         quizQuestionProgressBar.hide();
         quizBody.hide();
-        prevBtn.hide();
+        //prevBtn.hide();
         nextBtn.hide();
         submitBtn.hide();
 
@@ -410,9 +426,18 @@ jQuery(document).ready(function($) {
 
     function initQuiz() {
         buildAnswerMap();
-        buildSteps();
         renderSectionTitles();
-        renderStep(currentStepIndex);
+        currentView = 'intro';
+        renderCurrentView();
+    }
+
+    function findNextMainSectionIndex(startIndex) {
+        for (let i = startIndex + 1; i < assessmentQuizData.sections.length; i++) {
+            if (assessmentQuizData.sections[i].section_type === 'main') {
+                return i;
+            }
+        }
+        return -1; // No more main sections
     }
 
     // Event Listeners
@@ -455,12 +480,24 @@ jQuery(document).ready(function($) {
         }
 
         saveCurrentAnswer();
-        updateButtonVisibility();
+        
+        const question = assessmentQuizData.sections[currentSectionIndex].questions[currentQuestionIndex];
+        if (question.question_type === 'multiple') {
+            // Re-render to update button state
+            renderCurrentView();
+        }
 
         if ($this.is(':radio')) {
             setTimeout(function() {
-                const isLastQuestionStep = !steps.slice(currentStepIndex + 1).some(step => step.type === 'question');
-                if (isLastQuestionStep) {
+                const section = assessmentQuizData.sections[currentSectionIndex];
+                const isLastQuestionInQuiz = (currentSectionIndex === lastMainSectionIndex) && 
+                                             (currentQuestionIndex === section.questions.length - 1);
+                
+                const selectedAnswerId = $this.val();
+                const answer = answerMap[selectedAnswerId];
+                const hasJump = answer && answer.jump_to_section_id;
+
+                if (isLastQuestionInQuiz && !hasJump) {
                     submitBtn.trigger('click');
                 } else {
                     nextBtn.trigger('click');
@@ -469,23 +506,195 @@ jQuery(document).ready(function($) {
         }
     });
 
-    nextBtn.on('click', function() {
-        if (currentStepIndex < steps.length - 1) {
-            currentStepIndex++;
-            renderStep(currentStepIndex);
-            quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    });
+    // This function determines the next view based on current state and branching rules.
+    function findNextStep() {
+        // Default: linear progression
+        let nextView = null;
+        let nextSectionIndex = currentSectionIndex;
+        let nextQuestionIndex = currentQuestionIndex;
 
-    prevBtn.on('click', function() {
-        if (currentStepIndex > 0) {
-            currentStepIndex--;
-            renderStep(currentStepIndex);
-            quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Check for branching first (from a question view)
+        if (currentView === 'question') {
+            const question = assessmentQuizData.sections[currentSectionIndex].questions[currentQuestionIndex];
+            const selectedAnswerId = $(`input[name="question_${question.id}"]:checked`).val();
+            
+            if (selectedAnswerId) {
+                const answer = answerMap[selectedAnswerId];
+                //console.log("Debugging jump functionality. Selected answer:", answer);
+                // Note: The backend needs to add 'jump_to_section_id' to the answer data for this to work.
+                if (answer && answer.jump_to_section_id) {
+                    const jumpToSectionId = answer.jump_to_section_id; // Use string for comparison
+                    const targetSectionIndex = assessmentQuizData.sections.findIndex(s => s.id == jumpToSectionId);
+                    const currentSection = assessmentQuizData.sections[currentSectionIndex];
+
+                    if (targetSectionIndex !== -1 && currentSection.section_type === 'main') {
+                        // Store where we are jumping from
+                        jumpHistory.push({
+                            sectionIndex: currentSectionIndex,
+                            questionIndex: currentQuestionIndex
+                        });
+
+                        // Found a jump target!
+                        nextSectionIndex = targetSectionIndex;
+                        nextQuestionIndex = 0; // Start at the first question of the target section
+                        
+                        if (assessmentQuizData.sections[nextSectionIndex].section_content_begin) {
+                            nextView = 'section_begin';
+                        } else {
+                            nextView = 'question';
+                        }
+                        
+                        currentView = nextView;
+                        currentSectionIndex = nextSectionIndex;
+                        currentQuestionIndex = nextQuestionIndex;
+                        return; // Branching logic complete
+                    }
+                }
+            }
         }
+
+        // If no branching, proceed linearly
+        switch (currentView) {
+            case 'intro':
+                nextSectionIndex = 0;
+                if (assessmentQuizData.sections[0] && assessmentQuizData.sections[0].section_content_begin) {
+                    nextView = 'section_begin';
+                } else {
+                    nextView = 'question';
+                    nextQuestionIndex = 0;
+                }
+                break;
+
+            case 'section_begin':
+                nextView = 'question';
+                nextQuestionIndex = 0;
+                break;
+
+            case 'question':
+                const section = assessmentQuizData.sections[currentSectionIndex];
+                if (currentQuestionIndex < section.questions.length - 1) {
+                    nextView = 'question';
+                    nextQuestionIndex++;
+                } else {
+                    // End of a section
+                    if (section.section_type === 'jump') {
+                        // Handle the end of a jump section based on its 'on_end' property
+                        switch (section.on_end) {
+                            case 'jump_to_section':
+                                const targetSectionId = section.on_end_jump_to;
+                                const targetSectionIndex = assessmentQuizData.sections.findIndex(s => s.id == targetSectionId);
+                                if (targetSectionIndex !== -1) {
+                                    nextSectionIndex = targetSectionIndex;
+                                    if (assessmentQuizData.sections[nextSectionIndex].section_content_begin) {
+                                        nextView = 'section_begin';
+                                    } else {
+                                        nextView = 'question';
+                                        nextQuestionIndex = 0;
+                                    }
+                                } else {
+                                    // Fallback if jump target is invalid, just end the quiz
+                                    submitBtn.trigger('click');
+                                    return;
+                                }
+                                break;
+                            case 'end_quiz':
+                                submitBtn.trigger('click');
+                                return; // Stop further processing
+                            case 'return':
+                            default: // Default to return
+                                if (jumpHistory.length > 0) {
+                                    const returnLocation = jumpHistory.pop();
+                                    nextSectionIndex = returnLocation.sectionIndex;
+                                    nextQuestionIndex = returnLocation.questionIndex + 1;
+                                    const returnSection = assessmentQuizData.sections[nextSectionIndex];
+
+                                    if (nextQuestionIndex >= returnSection.questions.length) {
+                                        // We returned to the end of a main section
+                                        if (returnSection.section_content_end) {
+                                            nextView = 'section_end';
+                                        } else {
+                                            // Move to the next main section
+                                            const nextMainSectionIndex = findNextMainSectionIndex(nextSectionIndex);
+                                            if (nextMainSectionIndex !== -1) {
+                                                nextSectionIndex = nextMainSectionIndex;
+                                                if (assessmentQuizData.sections[nextSectionIndex].section_content_begin) {
+                                                    nextView = 'section_begin';
+                                                } else {
+                                                    nextView = 'question';
+                                                    nextQuestionIndex = 0;
+                                                }
+                                            } else {
+                                                // No more main sections, end the quiz
+                                                submitBtn.trigger('click');
+                                                return;
+                                            }
+                                        }
+                                    } else {
+                                        nextView = 'question';
+                                    }
+                                } else {
+                                    // If there's no history, something is wrong. End the quiz as a fallback.
+                                    submitBtn.trigger('click');
+                                    return;
+                                }
+                                break;
+                        }
+                    } else {
+                        // Normal progression at the end of a 'main' section
+                        if (section.section_content_end) {
+                            nextView = 'section_end';
+                        } else {
+                            const nextMainSectionIndex = findNextMainSectionIndex(currentSectionIndex);
+                            if (nextMainSectionIndex !== -1) {
+                                nextSectionIndex = nextMainSectionIndex;
+                                if (assessmentQuizData.sections[nextSectionIndex].section_content_begin) {
+                                    nextView = 'section_begin';
+                                } else {
+                                    nextView = 'question';
+                                    nextQuestionIndex = 0;
+                                }
+                            } else {
+                                submitBtn.trigger('click');
+                                return;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case 'section_end':
+                const nextMainSectionIndex = findNextMainSectionIndex(currentSectionIndex);
+                if (nextMainSectionIndex !== -1) {
+                    nextSectionIndex = nextMainSectionIndex;
+                    if (assessmentQuizData.sections[nextSectionIndex].section_content_begin) {
+                        nextView = 'section_begin';
+                    } else {
+                        nextView = 'question';
+                        nextQuestionIndex = 0;
+                    }
+                } else {
+                    submitBtn.trigger('click');
+                    return;
+                }
+                break;
+        }
+
+        // Update state
+        currentView = nextView;
+        currentSectionIndex = nextSectionIndex;
+        currentQuestionIndex = nextQuestionIndex;
+    }
+
+    nextBtn.on('click', function() {
+        saveCurrentAnswer();
+        findNextStep();
+        renderCurrentView();
+        quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     submitBtn.on('click', function() {
+        saveCurrentAnswer(); // Ensure the last answer is saved
+
         $(this).prop('disabled', true).text('Calculating...');
         $('#quiz-navigation').hide();
         quizSpinner.css('display', 'flex');

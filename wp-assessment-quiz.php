@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Assessment Quiz
  * Description:       A plugin for creating anxiety and depression assessment quizzes.
- * Version:           2.1.4
+ * Version:           3.0.0
  * Author:            Satria Faestha
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-define( 'ASSESSMENT_QUIZ_VERSION', '2.1.3' );
+define( 'ASSESSMENT_QUIZ_VERSION', '3.0.0' );
 define( 'ASSESSMENT_QUIZ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ASSESSMENT_QUIZ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -171,8 +171,11 @@ final class Assessment_Quiz {
             id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
             quiz_id INT(10) NOT NULL,
             title VARCHAR(255) NOT NULL,
+            section_type ENUM('main', 'jump') NOT NULL DEFAULT 'main',
             section_content_begin TEXT,
             section_content_end TEXT,
+            on_end ENUM('return', 'jump_to_section', 'end_quiz') NULL DEFAULT NULL,
+            on_end_jump_to INT(10) UNSIGNED NULL DEFAULT NULL,
             section_order INT NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             KEY quiz_id (quiz_id)
@@ -200,6 +203,7 @@ final class Assessment_Quiz {
             question_id INT(10) NOT NULL,
             answer_text VARCHAR(255),
             points SMALLINT NOT NULL DEFAULT 0,
+            jump_to_section_id INT(10) UNSIGNED NULL,
             answer_order INT NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             KEY question_id (question_id)
