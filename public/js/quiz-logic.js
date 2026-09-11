@@ -82,21 +82,44 @@ jQuery(document).ready(function($) {
         
         if (currentSection) {
             let sectionItem = $(`.quiz-progress-item[data-section-id="${currentSection.id}"]`);
-
-            // If the section is not in the progress bar, add it.
+    
+            // If the section is not in the progress bar, add it in the correct order.
             if (sectionItem.length === 0) {
                 const sectionList = $('.quiz-progress-list');
                 if (sectionList.length > 0) {
-                    // Check if there are already items to add a separator
-                    if (sectionList.children().length > 0) {
-                        sectionList.append($('<li class="quiz-progress-separator">|</li>'));
-                    }
                     const newSectionItem = $(`<li></li>`)
                         .addClass('quiz-progress-item')
                         .attr('data-section-id', currentSection.id)
                         .text(currentSection.title);
-                    sectionList.append(newSectionItem);
-                    sectionItem = newSectionItem;
+                    
+                    const currentSectionOrderIndex = assessmentQuizData.sections.findIndex(s => s.id == currentSection.id);
+                    let inserted = false;
+    
+                    // Find the first section in the progress bar that should come *after* the new section.
+                    for (let i = currentSectionOrderIndex + 1; i < assessmentQuizData.sections.length; i++) {
+                        const nextSectionInOrder = assessmentQuizData.sections[i];
+                        const nextSectionElement = sectionList.find(`.quiz-progress-item[data-section-id="${nextSectionInOrder.id}"]`);
+    
+                        if (nextSectionElement.length > 0) {
+                            // We found the element to insert before.
+                            const separator = $('<li class="quiz-progress-separator">|</li>');
+                            nextSectionElement.before(newSectionItem);
+                            newSectionItem.after(separator);
+                            inserted = true;
+                            break;
+                        }
+                    }
+    
+                    if (!inserted) {
+                        // If we didn't find a section to insert before, it means this new section
+                        // belongs at the end of the current list.
+                        const separator = $('<li class="quiz-progress-separator">|</li>');
+                        if (sectionList.children().length > 0) {
+                            sectionList.append(separator);
+                        }
+                        sectionList.append(newSectionItem);
+                    }
+                    sectionItem = newSectionItem; // Update reference to the newly added item
                 }
             }
             
