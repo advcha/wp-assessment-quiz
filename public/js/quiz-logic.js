@@ -229,8 +229,14 @@ jQuery(document).ready(function($) {
                 const isLastMainSection = currentSectionIndex === lastMainSectionIndex;
                 const isLastQuestionOfSection = currentQuestionIndex === section.questions.length - 1;
                 const doesSectionEndQuiz = section.on_end === 'end_quiz';
+                const hasEndContent = !!section.section_content_end;
 
-                const isLastQuestionInQuiz = (isLastMainSection && isLastQuestionOfSection) || (doesSectionEndQuiz && isLastQuestionOfSection);
+                // This is the final question of the entire quiz ONLY IF it's the last question
+                // of a section that ends the quiz, AND that section has NO end content to show first.
+                const isLastQuestionInQuiz = (
+                    (isLastMainSection && isLastQuestionOfSection) ||
+                    (doesSectionEndQuiz && isLastQuestionOfSection)
+                ) && !hasEndContent;
 
                 if (question.question_type === 'multiple') {
                     const isAnswerSelected = $(`input[name="question_${question.id}"]:checked`).length > 0;
@@ -493,8 +499,7 @@ jQuery(document).ready(function($) {
         const $answersContainer = $this.closest('.answers-container');
 
         if ($this.is(':radio')) {
-            // For single-choice, remove selection from all labels in the group
-            // and add it to the currently selected one.
+            // For single-choice, remove selection from siblings and add to current.
             $answersContainer.find('label').removeClass('answer-selected');
             $this.closest('label').addClass('answer-selected');
         } else if ($this.is(':checkbox')) {
@@ -506,15 +511,22 @@ jQuery(document).ready(function($) {
         
         const question = assessmentQuizData.sections[currentSectionIndex].questions[currentQuestionIndex];
         if (question.question_type === 'multiple') {
-            // Re-render to update button state
+            // Re-render to update button state for multiple choice questions
             renderCurrentView();
         }
 
         if ($this.is(':radio')) {
             setTimeout(function() {
                 const section = assessmentQuizData.sections[currentSectionIndex];
-                const isLastQuestionInQuiz = (currentSectionIndex === lastMainSectionIndex) && 
-                                             (currentQuestionIndex === section.questions.length - 1);
+                const isLastQuestionOfSection = currentQuestionIndex === section.questions.length - 1;
+                const doesSectionEndQuiz = section.on_end === 'end_quiz';
+                const hasEndContent = !!section.section_content_end;
+
+                // Determine if this is the final step before the results page.
+                const isLastQuestionInQuiz = (
+                    (currentSectionIndex === lastMainSectionIndex && isLastQuestionOfSection) ||
+                    (doesSectionEndQuiz && isLastQuestionOfSection)
+                ) && !hasEndContent;
                 
                 const selectedAnswerId = $this.val();
                 const answer = answerMap[selectedAnswerId];
@@ -708,10 +720,92 @@ jQuery(document).ready(function($) {
         currentQuestionIndex = nextQuestionIndex;
     }
 
-    nextBtn.on('click', function() {
-        saveCurrentAnswer();
-        findNextStep();
+    // This function handles the logic for what happens after a section is fully completed.
+    function handleSectionEnd() {
+        const section = assessmentQuizData.sections[currentSectionIndex];
+
+        // Case 1: The section is configured to 'return' to where it was called from.
+        if (section.on_end === 'return' && jumpHistory.length > 0) {
+            const lastJump = jumpHistory.pop();
+            const returnToSectionIndex = lastJump.sectionIndex;
+            const returnToQuestionIndex = lastJump.questionIndex;
+
+            // We have returned. Now, advance from where we were in the original section.
+            const returnToSection = assessmentQuizData.sections[returnToSectionIndex];
+            if (returnToQuestionIndex < returnToSection.questions.length - 1) {
+                // If the jump wasn't from the last question, go to the next question in that section.
+                currentSectionIndex = returnToSectionIndex;
+                currentQuestionIndex = returnToQuestionIndex + 1;
+                currentView = 'question';
+            } else {
+                // The jump was from the LAST question of the original section.
+                // That section is now complete, so find the next main section after it.
+                const nextMainSectionIndex = findNextMainSectionIndex(returnToSectionIndex);
+                if (nextMainSectionIndex !== -1) {
+                    currentSectionIndex = nextMainSectionIndex;
+                    currentQuestionIndex = 0;
+                    currentView = assessmentQuizData.sections[nextMainSectionIndex].section_content_begin ? 'section_begin' : 'question';
+                } else {
+                    // No more main sections after the one we returned to. End the quiz.
+                    currentView = 'result';
+                }
+            }
+        }
+        // Case 2: The section is configured to jump to a different section.
+        else if (section.on_end === 'jump' && section.jump_to_section_id) {
+            const targetSectionIndex = assessmentQuizData.sections.findIndex(s => s.id == section.jump_to_section_id);
+            if (targetSectionIndex !== -1) {
+                currentSectionIndex = targetSectionIndex;
+                currentQuestionIndex = 0;
+                currentView = assessmentQuizData.sections[targetSectionIndex].section_content_begin ? 'section_begin' : 'question';
+            } else {
+                currentView = 'result'; // Fallback if jump target is invalid
+            }
+        }
+        // Case 3: Standard linear progression (no jump, no return).
+        else {
+            const nextMainSectionIndex = findNextMainSectionIndex(currentSectionIndex);
+            if (nextMainSectionIndex !== -1) {
+                currentSectionIndex = nextMainSectionIndex;
+                currentQuestionIndex = 0;
+                currentView = assessmentQuizData.sections[nextMainSectionIndex].section_content_begin ? 'section_begin' : 'question';
+            } else {
+                currentView = 'result';
+            }
+        }
+
+        // After determining the next state, render it.
         renderCurrentView();
+    }
+
+    nextBtn.on('click', function() {
+        // Save the answer first if we are on a question page.
+        if (currentView === 'question') {
+            saveCurrentAnswer();
+        }
+
+        const section = assessmentQuizData.sections[currentSectionIndex];
+        const isLastQuestionOfSection = (currentView === 'question') && (currentQuestionIndex === section.questions.length - 1);
+
+        // If it's the last question of a section AND that section has end content,
+        // the next step is to show the 'section_end' view.
+        if (isLastQuestionOfSection && section.section_content_end) {
+            currentView = 'section_end';
+            renderCurrentView();
+        }
+        // If we are already on a 'section_end' view, clicking "Next" should
+        // trigger the logic to move to the next section (or jump, or return).
+        else if (currentView === 'section_end') {
+            handleSectionEnd(); // This function now handles all post-section logic and rendering.
+        }
+        // For all other cases (intro, section_begin, or a question that is NOT the last),
+        // use the existing findNextStep function for linear progression.
+        else {
+            findNextStep();
+            renderCurrentView();
+        }
+
+        // Finally, scroll to the top of the quiz container.
         quizContainer[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
