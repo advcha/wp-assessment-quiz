@@ -514,6 +514,7 @@
         });
 
         function addAnswerField(answer = {}) {
+            debugger;
             const answerTemplate = $('#answer-template').html();
             const $newAnswer = $(answerTemplate);
 
@@ -543,14 +544,13 @@
                         }
                     });
                 }
+                // Set the selected value if it exists
+                if (answer.jump_to_section_id) {
+                    $jumpToDropdown.val(answer.jump_to_section_id);
+                }
             } else {
                 // If the section is not 'main', hide the jump to section row
                 $jumpToDropdown.closest('tr').hide();
-            }
-
-            // Set the selected value if it exists
-            if (answer.jump_to_section_id) {
-                $jumpToDropdown.val(answer.jump_to_section_id);
             }
 
             $('#answers-container').append($newAnswer);

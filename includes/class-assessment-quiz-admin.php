@@ -1476,17 +1476,36 @@ class Assessment_Quiz_Admin {
 
         // Get the original sections
         $original_sections = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$sections_table} WHERE quiz_id = %d", $quiz_id ), ARRAY_A );
+        $section_id_map = [];
 
+        // First, duplicate all sections and build the section ID map
         foreach ( $original_sections as $original_section ) {
-            // Create the new section
+            $original_section_id = $original_section['id'];
             $new_section_data = $original_section;
             unset( $new_section_data['id'] );
             $new_section_data['quiz_id'] = $new_quiz_id;
+
             $wpdb->insert( $sections_table, $new_section_data );
             $new_section_id = $wpdb->insert_id;
+            $section_id_map[ $original_section_id ] = $new_section_id;
+        }
+
+        // Now, iterate again to update jump logic and duplicate questions/answers
+        foreach ( $original_sections as $original_section ) {
+            $original_section_id = $original_section['id'];
+            $new_section_id = $section_id_map[ $original_section_id ];
+
+            // Update the on_end_jump_to for the new section
+            if ( ! empty( $original_section['on_end_jump_to'] ) && isset( $section_id_map[ $original_section['on_end_jump_to'] ] ) ) {
+                $wpdb->update(
+                    $sections_table,
+                    [ 'on_end_jump_to' => $section_id_map[ $original_section['on_end_jump_to'] ] ],
+                    [ 'id' => $new_section_id ]
+                );
+            }
 
             // Get the original questions
-            $original_questions = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$questions_table} WHERE section_id = %d", $original_section['id'] ), ARRAY_A );
+            $original_questions = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$questions_table} WHERE section_id = %d", $original_section_id ), ARRAY_A );
 
             foreach ( $original_questions as $original_question ) {
                 // Create the new question
@@ -1504,6 +1523,12 @@ class Assessment_Quiz_Admin {
                     $new_answer_data = $original_answer;
                     unset( $new_answer_data['id'] );
                     $new_answer_data['question_id'] = $new_question_id;
+
+                    // Update the jump_to_section_id using the map
+                    if ( ! empty( $new_answer_data['jump_to_section_id'] ) && isset( $section_id_map[ $new_answer_data['jump_to_section_id'] ] ) ) {
+                        $new_answer_data['jump_to_section_id'] = $section_id_map[ $new_answer_data['jump_to_section_id'] ];
+                    }
+
                     $wpdb->insert( $answers_table, $new_answer_data );
                 }
             }
