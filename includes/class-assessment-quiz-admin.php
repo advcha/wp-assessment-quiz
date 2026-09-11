@@ -1442,6 +1442,7 @@ class Assessment_Quiz_Admin {
         $sections_table = $wpdb->prefix . 'assessment_sections';
         $questions_table = $wpdb->prefix . 'assessment_questions';
         $answers_table = $wpdb->prefix . 'assessment_answers';
+        $colors_table = $wpdb->prefix . 'assessment_quiz_tier_colors';
 
         // Get the original quiz
         $original_quiz = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$quizzes_table} WHERE id = %d", $quiz_id ), ARRAY_A );
@@ -1456,6 +1457,22 @@ class Assessment_Quiz_Admin {
         $new_quiz_data['created_at'] = current_time( 'mysql' );
         $wpdb->insert( $quizzes_table, $new_quiz_data );
         $new_quiz_id = $wpdb->insert_id;
+
+        // Duplicate tier colors
+        $original_colors = $wpdb->get_results( $wpdb->prepare( "SELECT tier_id, color FROM {$colors_table} WHERE quiz_id = %d", $quiz_id ), ARRAY_A );
+        if ( ! empty( $original_colors ) ) {
+            foreach ( $original_colors as $color_data ) {
+                $wpdb->insert(
+                    $colors_table,
+                    [
+                        'quiz_id' => $new_quiz_id,
+                        'tier_id' => $color_data['tier_id'],
+                        'color'   => $color_data['color'],
+                    ],
+                    [ '%d', '%d', '%s' ]
+                );
+            }
+        }
 
         // Get the original sections
         $original_sections = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$sections_table} WHERE quiz_id = %d", $quiz_id ), ARRAY_A );
