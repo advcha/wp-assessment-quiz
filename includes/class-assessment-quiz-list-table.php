@@ -111,6 +111,7 @@ class Assessment_Quiz_List_Table extends WP_List_Table {
         $questions_table = $wpdb->prefix . 'assessment_questions';
         $answers_table = $wpdb->prefix . 'assessment_answers';
         $quizzes_table = $wpdb->prefix . 'assessment_quizzes';
+        $colors_table = $wpdb->prefix . 'assessment_quiz_tier_colors';
 
         $question_ids = $wpdb->get_col( "SELECT q.id FROM {$questions_table} q JOIN {$sections_table} s ON q.section_id = s.id WHERE s.quiz_id IN ($id_list)" );
         if ( ! empty( $question_ids ) ) {
@@ -125,6 +126,7 @@ class Assessment_Quiz_List_Table extends WP_List_Table {
         }
         
         $wpdb->query( "DELETE FROM {$sections_table} WHERE quiz_id IN ($id_list)" );
+        $wpdb->query( "DELETE FROM {$colors_table} WHERE quiz_id IN ($id_list)" );
         $wpdb->query( "DELETE FROM {$quizzes_table} WHERE id IN ($id_list)" );
     }
 
